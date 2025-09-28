@@ -11,7 +11,19 @@ endpoints = [
 # Connection settings
 timeout_seconds = 30
 max_retries = 3
-retry_delay_ms = 1000
+pool_size = 10
+backoff_base_ms = 500
+backoff_max_ms = 8000
+
+[performance]
+# Worker and batching controls
+worker_threads = 8
+batch_size = 20
+simulation_cache_size = 1000
+cache_ttl_seconds = 300
+metrics_enabled = true
+connection_pool_size = 32
+keep_alive_timeout_seconds = 120
 
 [fees]
 # Fee calculation strategy
