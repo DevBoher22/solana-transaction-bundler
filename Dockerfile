@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y \
 # Create app directory
 WORKDIR /app
 
-# Copy manifests
-COPY Cargo.toml Cargo.lock ./
+# Copy manifests and source code
+COPY Cargo.toml ./
 COPY crates/ ./crates/
+
+# Note: Cargo.lock will be generated during build if not present
 
 # Build dependencies (this layer will be cached)
 RUN cargo build --release --bin bundler-cli --bin bundler-service
