@@ -48,7 +48,7 @@ impl TransactionSimulator {
             }
             
             // Check account limits
-            if instruction.accounts.len() > self.security_config.max_writable_accounts {
+            if instruction.accounts.len() > self.security_config.max_writable_accounts as usize {
                 return Err(BundlerError::Simulation(format!(
                     "Instruction {}: Too many accounts ({} > {})",
                     i, instruction.accounts.len(), self.security_config.max_writable_accounts
@@ -60,7 +60,7 @@ impl TransactionSimulator {
                 .filter(|meta| meta.is_writable)
                 .count();
             
-            if writable_count > self.security_config.max_writable_accounts {
+            if writable_count > self.security_config.max_writable_accounts as usize {
                 return Err(BundlerError::Simulation(format!(
                     "Instruction {}: Too many writable accounts ({} > {})",
                     i, writable_count, self.security_config.max_writable_accounts

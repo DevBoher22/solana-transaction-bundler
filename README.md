@@ -177,6 +177,7 @@ program_whitelist = [
     "11111111111111111111111111111112",  # System Program
     "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"   # Token Program
 ]
+max_writable_accounts = 64
 require_simulation = true
 
 [signing]

@@ -3,8 +3,7 @@ use bundler_types::{BundlerError, BundlerResult, FeeStrategy, JitoConfig, RpcEnd
 use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
 use solana_sdk::pubkey::Pubkey;
-use std::{collections::HashMap, path::Path};
-use tracing::{debug, info, warn};
+use std::path::Path;
 
 /// Main configuration structure for the bundler
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +78,35 @@ pub struct SecurityConfig {
     /// Maximum bundle size
     #[serde(default = "default_max_bundle_size")]
     pub max_bundle_size: u32,
+
+    /// Whether transactions must be simulated before submission
+    #[serde(default = "default_require_simulation")]
+    pub require_simulation: bool,
+
+    /// Maximum number of writable accounts allowed per instruction
+    #[serde(default = "default_max_writable_accounts")]
+    pub max_writable_accounts: u32,
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            max_compute_units: default_max_compute_units(),
+            max_fee_lamports: default_max_fee_lamports(),
+            program_whitelist: vec![system_program()],
+            validate_instructions: default_validate_instructions(),
+            max_bundle_size: default_max_bundle_size(),
+            require_simulation: default_require_simulation(),
+            max_writable_accounts: default_max_writable_accounts(),
+        }
+    }
+}
+
+impl SecurityConfig {
+    /// Check if a program is whitelisted. Empty whitelist allows all programs.
+    pub fn is_program_whitelisted(&self, program_id: &Pubkey) -> bool {
+        self.program_whitelist.is_empty() || self.program_whitelist.contains(program_id)
+    }
 }
 
 /// Signing configuration
@@ -214,6 +242,8 @@ fn default_max_compute_units() -> u32 { 1_400_000 }
 fn default_max_fee_lamports() -> u64 { 100_000 }
 fn default_validate_instructions() -> bool { true }
 fn default_max_bundle_size() -> u32 { 5 }
+fn default_require_simulation() -> bool { true }
+fn default_max_writable_accounts() -> u32 { 64 }
 fn default_parallel_signing() -> bool { true }
 fn default_log_level() -> String { "info".to_string() }
 fn default_log_format() -> String { "pretty".to_string() }
@@ -260,6 +290,8 @@ impl Default for BundlerConfig {
                 ],
                 validate_instructions: default_validate_instructions(),
                 max_bundle_size: default_max_bundle_size(),
+                require_simulation: default_require_simulation(),
+                max_writable_accounts: default_max_writable_accounts(),
             },
             signing: SigningConfig {
                 fee_payer: SignerConfig {
@@ -322,7 +354,7 @@ impl BundlerConfig {
     
     /// Load configuration from environment and files
     pub fn load() -> Result<Self> {
-        let mut config = Config::builder()
+        let config = Config::builder()
             .add_source(File::with_name("bundler.config").required(false))
             .add_source(File::with_name("/etc/bundler/config").required(false))
             .add_source(Environment::with_prefix("BUNDLER").separator("_"))
@@ -375,6 +407,12 @@ impl BundlerConfig {
         if self.security.max_bundle_size == 0 {
             return Err(BundlerError::Config("Max bundle size must be greater than 0".to_string()));
         }
+
+        if self.security.max_writable_accounts == 0 {
+            return Err(BundlerError::Config(
+                "Max writable accounts must be greater than 0".to_string(),
+            ));
+        }
         
         // Validate service settings
         if self.service.port == 0 {
@@ -414,10 +452,7 @@ impl BundlerConfig {
     
     /// Check if a program is whitelisted
     pub fn is_program_whitelisted(&self, program_id: &Pubkey) -> bool {
-        if self.security.program_whitelist.is_empty() {
-            return true; // Empty whitelist means allow all
-        }
-        self.security.program_whitelist.contains(program_id)
+        self.security.is_program_whitelisted(program_id)
     }
     
     /// Get effective log level
@@ -430,6 +465,68 @@ impl BundlerConfig {
             "error" => tracing::Level::ERROR,
             _ => tracing::Level::INFO,
         }
+    }
+}
+
+/// Builder for [`SecurityConfig`]
+pub struct SecurityConfigBuilder {
+    config: SecurityConfig,
+}
+
+impl SecurityConfigBuilder {
+    pub fn new() -> Self {
+        Self {
+            config: SecurityConfig::default(),
+        }
+    }
+
+    pub fn with_program_whitelist(mut self, programs: Vec<Pubkey>) -> Self {
+        self.config.program_whitelist = programs;
+        self
+    }
+
+    pub fn with_max_compute_units(mut self, max_compute_units: u32) -> Self {
+        self.config.max_compute_units = max_compute_units;
+        self
+    }
+
+    pub fn with_max_fee_lamports(mut self, max_fee_lamports: u64) -> Self {
+        self.config.max_fee_lamports = max_fee_lamports;
+        self
+    }
+
+    pub fn with_validate_instructions(mut self, validate: bool) -> Self {
+        self.config.validate_instructions = validate;
+        self
+    }
+
+    pub fn with_max_bundle_size(mut self, max_bundle_size: u32) -> Self {
+        self.config.max_bundle_size = max_bundle_size;
+        self
+    }
+
+    pub fn with_require_simulation(mut self, require_simulation: bool) -> Self {
+        self.config.require_simulation = require_simulation;
+        self
+    }
+
+    pub fn with_max_writable_accounts(mut self, max_writable_accounts: u32) -> Self {
+        self.config.max_writable_accounts = max_writable_accounts;
+        self
+    }
+
+    pub fn build(self) -> BundlerResult<SecurityConfig> {
+        if self.config.max_writable_accounts == 0 {
+            return Err(BundlerError::Config("max_writable_accounts must be greater than 0".to_string()));
+        }
+
+        Ok(self.config)
+    }
+}
+
+impl Default for SecurityConfigBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -515,9 +612,24 @@ mod tests {
             .with_log_level("debug".to_string())
             .build()
             .unwrap();
-        
+
         assert_eq!(config.logging.level, "debug");
         assert!(config.rpc.endpoints.len() >= 1);
+    }
+
+    #[test]
+    fn test_security_config_builder() {
+        let program_id = Pubkey::new_unique();
+        let security = SecurityConfigBuilder::new()
+            .with_program_whitelist(vec![program_id])
+            .with_max_writable_accounts(10)
+            .with_require_simulation(false)
+            .build()
+            .unwrap();
+
+        assert_eq!(security.max_writable_accounts, 10);
+        assert!(!security.require_simulation);
+        assert!(security.is_program_whitelisted(&program_id));
     }
     
     #[test]
@@ -685,10 +797,15 @@ mod tests {
         // Test max bundle size validation
         config.security.max_bundle_size = 0;
         assert!(config.validate().is_err());
-        
+
         // Test max fee validation
         config = BundlerConfig::default();
         config.security.max_fee_lamports = 0;
+        assert!(config.validate().is_err());
+
+        // Test writable account validation
+        config = BundlerConfig::default();
+        config.security.max_writable_accounts = 0;
         assert!(config.validate().is_err());
     }
     
@@ -738,5 +855,9 @@ mod tests {
         assert_eq!(config.logging.format, "pretty");
         assert!(config.logging.include_timestamps);
         assert!(!config.logging.file_enabled);
+
+        // Test security defaults
+        assert!(config.security.require_simulation);
+        assert_eq!(config.security.max_writable_accounts, 64);
     }
 }
