@@ -50,23 +50,42 @@ fn test_bundle_request_serialization() {
 fn test_bundle_response_creation() {
     let request_id = Uuid::new_v4();
     let signature = Signature::new_unique();
-    
+    let failed_signature = Signature::new_unique();
+    let bundle_signature = Signature::new_unique();
+
     let response = BundleResponse {
         request_id,
         status: BundleStatus::Success,
         transactions: vec![
             TransactionResult {
-                signature,
-                slot: Some(12345),
+                signature: Some(signature),
                 status: TransactionStatus::Finalized,
                 compute_units_consumed: Some(50_000),
                 fee_paid_lamports: Some(5_000),
                 logs: vec!["Program log: Success".to_string()],
                 error: None,
-            }
+            },
+            TransactionResult {
+                signature: Some(failed_signature),
+                status: TransactionStatus::Failed,
+                compute_units_consumed: None,
+                fee_paid_lamports: None,
+                logs: vec!["Program log: Failure".to_string()],
+                error: Some("Transaction failed".to_string()),
+            },
         ],
+        bundle_signature: Some(bundle_signature),
+        slot: Some(12345),
+        blockhash: Some("ExampleBlockhash".to_string()),
+        confirmation: ConfirmationStatus::Finalized,
         logs_url: Some(format!("/logs/{}", request_id)),
         metrics: BundleMetrics {
+            total_transactions: 2,
+            successful_transactions: 1,
+            failed_transactions: 1,
+            total_compute_units: 50_000,
+            total_fee_paid: 5_000,
+            processing_time_ms: 1_200,
             total_latency_ms: 1500,
             simulation_time_ms: 200,
             signing_time_ms: 50,
@@ -77,10 +96,13 @@ fn test_bundle_response_creation() {
         },
         completed_at: Utc::now(),
     };
-    
+
     assert_eq!(response.status, BundleStatus::Success);
-    assert_eq!(response.transactions.len(), 1);
+    assert_eq!(response.transactions.len(), 2);
     assert!(response.metrics.total_latency_ms > 0);
+    assert_eq!(response.metrics.total_transactions, response.transactions.len() as u32);
+    assert_eq!(response.bundle_signature, Some(bundle_signature));
+    assert_eq!(response.confirmation, ConfirmationStatus::Finalized);
 }
 
 #[test]
@@ -123,55 +145,36 @@ fn test_compute_config_variants() {
 
 #[test]
 fn test_transaction_error_types() {
-    let errors = vec![
-        TransactionError {
-            error_type: ErrorType::InsufficientFunds,
-            message: "Not enough SOL".to_string(),
-            raw_error: None,
-            retryable: false,
-        },
-        TransactionError {
-            error_type: ErrorType::AccountInUse,
-            message: "Account is locked".to_string(),
-            raw_error: Some("RPC Error".to_string()),
-            retryable: true,
-        },
-        TransactionError {
-            error_type: ErrorType::NetworkError,
-            message: "Connection timeout".to_string(),
-            raw_error: None,
-            retryable: true,
-        },
-    ];
-    
-    // Test that retryable errors are correctly identified
-    assert!(!errors[0].retryable); // InsufficientFunds
-    assert!(errors[1].retryable);  // AccountInUse
-    assert!(errors[2].retryable);  // NetworkError
-    
-    // Test serialization of error types
-    for error in &errors {
-        let json = serde_json::to_string(error).unwrap();
-        let deserialized: TransactionError = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.error_type, error.error_type);
-        assert_eq!(deserialized.retryable, error.retryable);
-    }
+    let result = TransactionResult {
+        signature: Some(Signature::new_unique()),
+        status: TransactionStatus::Failed,
+        compute_units_consumed: None,
+        fee_paid_lamports: None,
+        logs: vec!["Program log: failure".to_string()],
+        error: Some("Account is locked".to_string()),
+    };
+
+    let json = serde_json::to_string(&result).unwrap();
+    let deserialized: TransactionResult = serde_json::from_str(&json).unwrap();
+
+    assert_eq!(deserialized.status, TransactionStatus::Failed);
+    assert_eq!(deserialized.error.as_deref(), Some("Account is locked"));
 }
 
 #[test]
 fn test_health_status_components() {
     let mut components = HashMap::new();
-    components.insert("rpc".to_string(), ComponentStatus {
+    components.insert("rpc".to_string(), ComponentHealth {
         healthy: true,
         message: Some("All endpoints responding".to_string()),
         last_success: Some(Utc::now()),
     });
-    components.insert("signing".to_string(), ComponentStatus {
+    components.insert("signing".to_string(), ComponentHealth {
         healthy: false,
         message: Some("KMS timeout".to_string()),
         last_success: None,
     });
-    
+
     let health = HealthStatus {
         healthy: false, // Overall unhealthy due to signing component
         timestamp: Utc::now(),
@@ -187,6 +190,12 @@ fn test_health_status_components() {
 #[test]
 fn test_bundle_metrics_calculation() {
     let metrics = BundleMetrics {
+        total_transactions: 3,
+        successful_transactions: 2,
+        failed_transactions: 1,
+        total_compute_units: 150_000,
+        total_fee_paid: 15_000,
+        processing_time_ms: 1_500,
         total_latency_ms: 2000,
         simulation_time_ms: 300,
         signing_time_ms: 100,
@@ -198,16 +207,18 @@ fn test_bundle_metrics_calculation() {
             "endpoint2".to_string(),
         ],
     };
-    
+
     // Verify that component times don't exceed total
-    let component_sum = metrics.simulation_time_ms + 
-                       metrics.signing_time_ms + 
-                       metrics.submission_time_ms + 
-                       metrics.confirmation_time_ms;
-    
+    let component_sum = metrics.simulation_time_ms
+        + metrics.signing_time_ms
+        + metrics.submission_time_ms
+        + metrics.confirmation_time_ms;
+
     assert!(component_sum <= metrics.total_latency_ms);
     assert_eq!(metrics.rpc_endpoints_used.len(), 2);
     assert_eq!(metrics.retry_attempts, 2);
+    assert_eq!(metrics.total_transactions, 3);
+    assert_eq!(metrics.successful_transactions + metrics.failed_transactions, metrics.total_transactions);
 }
 
 #[test]
@@ -247,6 +258,10 @@ fn test_bundler_error_types() {
         BundlerError::Transaction("Simulation failed".to_string()),
         BundlerError::Simulation("Program error".to_string()),
         BundlerError::InvalidInput("Malformed request".to_string()),
+        BundlerError::Timeout("Request timed out".to_string()),
+        BundlerError::InvalidInstruction("Bad instruction".to_string()),
+        BundlerError::RpcError("RPC error".to_string()),
+        BundlerError::Internal("Internal error".to_string()),
     ];
     
     for error in errors {
@@ -266,22 +281,22 @@ fn test_signer_config_variants() {
             path: "/path/to/keypair.json".to_string(),
         },
     };
-    
+
     let env_signer = SignerConfig {
         alias: Some("env_test".to_string()),
         signer_type: SignerType::Env {
             var_name: "PRIVATE_KEY".to_string(),
         },
     };
-    
+
     let kms_signer = SignerConfig {
         alias: Some("kms_test".to_string()),
         signer_type: SignerType::Kms {
             key_id: "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012".to_string(),
-            region: "us-east-1".to_string(),
+            region: Some("us-east-1".to_string()),
         },
     };
-    
+
     // Test serialization/deserialization
     for signer in vec![file_signer, env_signer, kms_signer] {
         let json = serde_json::to_string(&signer).unwrap();
@@ -309,13 +324,13 @@ fn test_fee_strategy_serialization() {
 fn test_bundle_status_transitions() {
     // Test valid status transitions
     let statuses = vec![
-        BundleStatus::Pending,
         BundleStatus::Processing,
         BundleStatus::Success,
-        BundleStatus::Partial,
         BundleStatus::Failed,
+        BundleStatus::Timeout,
+        BundleStatus::Rejected,
     ];
-    
+
     for status in statuses {
         let json = serde_json::to_string(&status).unwrap();
         let deserialized: BundleStatus = serde_json::from_str(&json).unwrap();
@@ -331,9 +346,8 @@ fn test_transaction_status_hierarchy() {
         TransactionStatus::Confirmed,
         TransactionStatus::Finalized,
         TransactionStatus::Failed,
-        TransactionStatus::Timeout,
     ];
-    
+
     // Test that all statuses can be serialized and deserialized
     for status in statuses {
         let json = serde_json::to_string(&status).unwrap();
@@ -347,8 +361,10 @@ fn test_rpc_endpoint_weight_validation() {
     let endpoint = RpcEndpoint {
         url: "https://api.mainnet-beta.solana.com".to_string(),
         weight: 100,
+        supports_jito: true,
+        auth_token: Some("token".to_string()),
     };
-    
+
     assert!(endpoint.weight > 0);
     assert!(endpoint.url.starts_with("https://"));
     
@@ -362,23 +378,28 @@ fn test_rpc_endpoint_weight_validation() {
 #[test]
 fn test_jito_config_optional_fields() {
     let jito_config = JitoConfig {
+        block_engine_url: "https://mainnet.block-engine.jito.wtf".to_string(),
+        relayer_url: "https://relayer.jito.wtf".to_string(),
+        auth_keypair_path: Some("/path/to/jito.json".to_string()),
+        tip_lamports: 10_000,
+        max_tip_lamports: 20_000,
         enabled: true,
-        tip_lamports: Some(10_000),
-        block_engine_url: Some("https://mainnet.block-engine.jito.wtf".to_string()),
     };
-    
+
     assert!(jito_config.enabled);
-    assert_eq!(jito_config.tip_lamports, Some(10_000));
-    assert!(jito_config.block_engine_url.is_some());
-    
-    // Test with disabled Jito
+    assert_eq!(jito_config.tip_lamports, 10_000);
+    assert_eq!(jito_config.auth_keypair_path.as_deref(), Some("/path/to/jito.json"));
+
     let disabled_jito = JitoConfig {
+        block_engine_url: "https://mainnet.block-engine.jito.wtf".to_string(),
+        relayer_url: "https://relayer.jito.wtf".to_string(),
+        auth_keypair_path: None,
+        tip_lamports: 0,
+        max_tip_lamports: 5_000,
         enabled: false,
-        tip_lamports: None,
-        block_engine_url: None,
     };
-    
+
     assert!(!disabled_jito.enabled);
-    assert!(disabled_jito.tip_lamports.is_none());
-    assert!(disabled_jito.block_engine_url.is_none());
+    assert!(disabled_jito.auth_keypair_path.is_none());
+    assert_eq!(disabled_jito.max_tip_lamports, 5_000);
 }
