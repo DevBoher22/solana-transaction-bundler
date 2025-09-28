@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::Json,
     routing::{get, post},
@@ -277,12 +277,12 @@ async fn get_transaction_status(
             
             let fee = tx.transaction.meta.as_ref().map(|meta| meta.fee);
             let compute_units = tx.transaction.meta.as_ref()
-                .and_then(|meta| meta.compute_units_consumed)
+                .and_then(|meta| meta.compute_units_consumed.0)
                 .map(|cu| cu as u64);
             
             let logs = if params.verbose.unwrap_or(false) {
                 tx.transaction.meta.as_ref()
-                    .and_then(|meta| Some(meta.log_messages.clone()))
+                    .and_then(|meta| meta.log_messages.0.clone())
             } else {
                 None
             };

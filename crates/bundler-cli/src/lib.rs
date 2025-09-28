@@ -240,7 +240,7 @@ impl CliRunner {
         }
         
         // Submit the bundle
-        match self.service.bundler.process_bundle(bundle_request).await {
+        match self.service.process_bundle(bundle_request).await {
             Ok(response) => {
                 println!("Bundle submitted successfully!");
                 println!("Request ID: {}", response.request_id);
@@ -295,7 +295,7 @@ impl CliRunner {
         
         // Try to parse as signature first
         if let Ok(signature) = id.parse::<solana_sdk::signature::Signature>() {
-            match self.service.rpc_client.get_transaction(&signature).await {
+            match self.service.get_transaction(&signature).await {
                 Ok(Some(tx)) => {
                     println!("Transaction found: {}", signature);
                     
@@ -353,31 +353,24 @@ impl CliRunner {
         
         match self.service.health_check().await {
             Ok(health) => {
-                if health.healthy {
+                let all_healthy = health.values().all(|status| status == "healthy");
+                if all_healthy {
                     println!("✅ Bundler is healthy");
                 } else {
                     println!("❌ Bundler is unhealthy");
                 }
                 
-                println!("Last check: {}", health.timestamp);
+                println!("Last check: {}", chrono::Utc::now().to_rfc3339());
                 
                 if verbose {
                     println!("\nComponent status:");
-                    for (name, component) in &health.components {
-                        let status = if component.healthy { "✅" } else { "❌" };
-                        println!("  {} {}", status, name);
-                        
-                        if let Some(message) = &component.message {
-                            println!("    {}", message);
-                        }
-                        
-                        if let Some(last_success) = component.last_success {
-                            println!("    Last success: {}", last_success);
-                        }
+                    for (name, status) in &health {
+                        let status_icon = if status == "healthy" { "✅" } else { "❌" };
+                        println!("  {} {} ({})", status_icon, name, status);
                     }
                 }
                 
-                if !health.healthy {
+                if !all_healthy {
                     std::process::exit(1);
                 }
             }
@@ -451,7 +444,7 @@ impl CliRunner {
             
             let result = timeout(remaining_time, async {
                 loop {
-                    match self.service.rpc_client.confirm_transaction(
+                    match self.service.confirm_transaction(
                         &tx_result.signature,
                         solana_sdk::commitment_config::CommitmentLevel::Finalized,
                     ).await {
