@@ -275,9 +275,27 @@ pub enum ErrorType {
     Unknown,
 }
 
-/// Metrics collected during bundle processing
+/// Bundle execution metrics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BundleMetrics {
+    /// Total number of transactions in bundle
+    pub total_transactions: u32,
+    
+    /// Number of successful transactions
+    pub successful_transactions: u32,
+    
+    /// Number of failed transactions
+    pub failed_transactions: u32,
+    
+    /// Total compute units consumed
+    pub total_compute_units: u64,
+    
+    /// Total fee paid in lamports
+    pub total_fee_paid: u64,
+    
+    /// Total processing time in milliseconds
+    pub processing_time_ms: u64,
+    
     /// Total end-to-end latency
     pub total_latency_ms: u64,
     
@@ -303,6 +321,18 @@ pub struct BundleMetrics {
 /// Configuration for fee strategy
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeeStrategy {
+    /// Base fee in lamports
+    pub base_fee_lamports: u64,
+    
+    /// Priority fee in lamports
+    pub priority_fee_lamports: u64,
+    
+    /// Compute unit price in micro-lamports
+    pub compute_unit_price_micro_lamports: u64,
+    
+    /// Maximum price in lamports per transaction
+    pub max_price_lamports: u64,
+    
     /// Base strategy (P75 of recent fees)
     pub base_percentile: u8,
     
@@ -317,20 +347,20 @@ pub struct FeeStrategy {
     
     /// Maximum fee bump attempts
     pub max_bump_attempts: u32,
-    
-    /// Maximum price in lamports per transaction
-    pub max_price_lamports: u64,
 }
 
 impl Default for FeeStrategy {
     fn default() -> Self {
         Self {
+            base_fee_lamports: 5000,
+            priority_fee_lamports: 0,
+            compute_unit_price_micro_lamports: 1,
+            max_price_lamports: 100_000_000, // 0.1 SOL max
             base_percentile: 75,
             buffer_percent: 10,
             adaptive: true,
             enable_bump: true,
             max_bump_attempts: 3,
-            max_price_lamports: 100_000_000, // 0.1 SOL max
         }
     }
 }
@@ -504,3 +534,6 @@ mod tests {
         let _: ComputeConfig = serde_json::from_str(&json).unwrap();
     }
 }
+
+#[cfg(test)]
+mod tests;
