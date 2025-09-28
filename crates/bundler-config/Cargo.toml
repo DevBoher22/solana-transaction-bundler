@@ -16,6 +16,8 @@ toml.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 solana-sdk.workspace = true
+solana-system-program.workspace = true
+solana-compute-budget-instruction.workspace = true
 tracing.workspace = true
 num_cpus = "1.16"
 

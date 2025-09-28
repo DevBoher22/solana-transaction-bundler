@@ -18,10 +18,10 @@ description = "Production-ready Solana transaction bundler with low latency and 
 
 [workspace.dependencies]
 # Solana dependencies
-solana-client = "1.17"
-solana-sdk = "1.17"
-solana-transaction-status = "1.17"
-solana-account-decoder = "1.17"
+solana-client = "3.0"
+solana-sdk = "3.0"
+solana-transaction-status = "3.0"
+solana-account-decoder = "3.0"
 
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }
@@ -82,6 +82,10 @@ base64 = "0.21"
 mockall = "0.12"
 wiremock = "0.5"
 tempfile = "3.8"
+
+# Solana program dependencies
+solana-system-program = "3.0"
+solana-compute-budget-instruction = "3.0"
 
 # SPL Token dependencies
 spl-token = "4.0"

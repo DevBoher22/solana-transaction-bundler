@@ -285,9 +285,9 @@ impl Default for BundlerConfig {
             security: SecurityConfig {
                 program_whitelist: vec![
                     // System Program
-                    solana_sdk::system_program::id(),
-                    // Compute Budget Program
-                    solana_sdk::compute_budget::id(),
+                    "11111111111111111111111111111111".parse().unwrap(),
+                    // Compute Budget Program  
+                    "ComputeBudget111111111111111111111111111111".parse().unwrap(),
                 ],
                 account_whitelist: None,
                 max_writable_accounts: default_max_writable_accounts(),
@@ -543,11 +543,11 @@ pub mod program_ids {
     use solana_sdk::pubkey::Pubkey;
     
     pub fn system_program() -> Pubkey {
-        solana_sdk::system_program::id()
+        "11111111111111111111111111111111".parse().unwrap()
     }
     
     pub fn compute_budget() -> Pubkey {
-        solana_sdk::compute_budget::id()
+        "ComputeBudget111111111111111111111111111111".parse().unwrap()
     }
 }
 
