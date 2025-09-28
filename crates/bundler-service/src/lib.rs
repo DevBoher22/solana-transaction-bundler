@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use base64::Engine;
 use bundler_core::BundlerService;
 use bundler_types::{BundleRequest, BundleResponse, BundlerError, BundlerResult};
 use chrono::{DateTime, Utc};
@@ -128,7 +129,7 @@ async fn submit_bundle(
 ) -> Result<Json<SubmitBundleResponse>, (StatusCode, Json<ErrorResponse>)> {
     info!("Received bundle submission request: {}", request.bundle.request_id);
     
-    match service.bundler.process_bundle(request.bundle).await {
+    match service.process_bundle(request.bundle).await {
         Ok(response) => {
             info!("Bundle processed successfully: {}", response.request_id);
             Ok(Json(SubmitBundleResponse { response }))
@@ -139,7 +140,7 @@ async fn submit_bundle(
                 StatusCode::BAD_REQUEST,
                 Json(ErrorResponse {
                     error: "Bundle processing failed".to_string(),
-                    details: Some(e.to_string()),
+                    details: Some(format!("{}", e)),
                 }),
             ))
         }
@@ -154,7 +155,7 @@ async fn simulate_bundle(
     info!("Received bundle simulation request: {}", request.bundle.request_id);
     
     // Convert instructions to Solana instructions
-    let instructions: Result<Vec<_>, _> = request.bundle.instructions
+    let instructions: Result<Vec<solana_sdk::instruction::Instruction>, String> = request.bundle.instructions
         .iter()
         .map(|ix| {
             let instruction_bytes = base64::engine::general_purpose::STANDARD
@@ -168,7 +169,7 @@ async fn simulate_bundle(
                     is_signer: meta.is_signer,
                     is_writable: meta.is_writable,
                 })
-                .collect();
+                .collect::<Vec<_>>();
             
             Ok(solana_sdk::instruction::Instruction {
                 program_id: ix.program_id,
@@ -203,7 +204,7 @@ async fn simulate_bundle(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ErrorResponse {
                         error: "Failed to get fee payer".to_string(),
-                        details: Some(e.to_string()),
+                        details: Some(format!("{}", e)),
                     }),
                 ));
             }
@@ -321,7 +322,7 @@ async fn get_transaction_status(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
                     error: "Failed to get transaction".to_string(),
-                    details: Some(e.to_string()),
+                    details: Some(format!("{}", e)),
                 }),
             ))
         }
@@ -343,7 +344,7 @@ async fn health_check(
                         last_success: Some(Utc::now().to_rfc3339()),
                     })
                 })
-                .collect();
+                .collect::<Vec<_>>();
             
             let all_healthy = health.values().all(|status| status == "healthy");
             let status_code = if all_healthy {
@@ -366,7 +367,7 @@ async fn health_check(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse {
                     error: "Health check failed".to_string(),
-                    details: Some(e.to_string()),
+                    details: Some(format!("{}", e)),
                 }),
             ))
         }

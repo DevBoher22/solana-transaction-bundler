@@ -306,22 +306,26 @@ impl CliRunner {
                             TransactionStatus::Failed 
                         });
                         
-                        if let Some(slot) = tx.slot {
-                            println!("Slot: {}", slot);
-                        }
+                        println!("Slot: {}", tx.slot);
                         
                         println!("Fee: {} lamports", meta.fee);
                         
-                        if let Some(cu) = meta.compute_units_consumed {
-                            println!("Compute units: {}", cu);
+                        match meta.compute_units_consumed {
+                            solana_transaction_status_client_types::option_serializer::OptionSerializer::Some(cu) => {
+                                println!("Compute units: {}", cu);
+                            },
+                            _ => {}
                         }
                         
                         if verbose {
-                            if let Some(logs) = &meta.log_messages {
-                                println!("\nLogs:");
-                                for log in logs {
-                                    println!("  {}", log);
-                                }
+                            match &meta.log_messages {
+                                solana_transaction_status_client_types::option_serializer::OptionSerializer::Some(logs) => {
+                                    println!("\nLogs:");
+                                    for log in logs {
+                                        println!("  {}", log);
+                                    }
+                                },
+                                _ => {}
                             }
                         }
                         

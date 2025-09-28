@@ -162,7 +162,7 @@ pub struct BundleResponse {
 }
 
 /// Overall bundle status
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum BundleStatus {
     /// All transactions succeeded
