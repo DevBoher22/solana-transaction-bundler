@@ -247,15 +247,23 @@ data:
         { url = "https://api.mainnet-beta.solana.com", weight = 100 }
     ]
     timeout_seconds = 30
-    
+    backoff_base_ms = 500
+    backoff_max_ms = 8000
+
     [fees]
     strategy = "p75_plus_buffer"
     base_fee_lamports = 5000
-    
+
     [security]
     program_whitelist = [
         "11111111111111111111111111111112"
     ]
+
+    [performance]
+    worker_threads = 8
+    batch_size = 20
+    connection_pool_size = 16
+    keep_alive_timeout_seconds = 90
     
     [signing]
     fee_payer = { type = "kms", key_id = "${KMS_KEY_ID}", region = "${AWS_REGION}" }
