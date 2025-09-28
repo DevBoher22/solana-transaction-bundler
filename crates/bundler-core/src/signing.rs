@@ -193,11 +193,9 @@ impl SigningManager {
         let fee_payer = Self::create_key_provider(&config.fee_payer).await?;
         
         let mut additional_signers = HashMap::new();
-        for signer_config in &config.additional_signers {
-            if let Some(alias) = &signer_config.alias {
-                let provider = Self::create_key_provider(signer_config).await?;
-                additional_signers.insert(alias.clone(), provider);
-            }
+        for (alias, signer_config) in &config.additional_signers {
+            let provider = Self::create_key_provider(signer_config).await?;
+            additional_signers.insert(alias.clone(), provider);
         }
         
         Ok(Self {
@@ -247,6 +245,17 @@ impl SigningManager {
                 }
             }
         }
+        
+        Ok(())
+    }
+    
+    /// Sign a transaction with the fee payer and additional signers
+    pub async fn sign_transaction_with_signers(&self, transaction: &mut Transaction, signer_aliases: &[String]) -> BundlerResult<()> {
+        // First sign with fee payer
+        self.sign_transaction(transaction).await?;
+        
+        // Then sign with additional signers
+        self.sign_with_additional(transaction, signer_aliases).await?;
         
         Ok(())
     }

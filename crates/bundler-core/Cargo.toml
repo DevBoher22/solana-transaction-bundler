@@ -49,6 +49,8 @@ uuid.workspace = true
 chrono.workspace = true
 rand.workspace = true
 backoff.workspace = true
+bs58.workspace = true
+async-trait.workspace = true
 
 # Logging
 tracing.workspace = true

@@ -195,16 +195,23 @@ impl SolanaRpcClient {
             inner_instructions: true,
         };
 
-        self.execute_with_failover(|client| {
-            client.simulate_transaction_with_config(transaction, config)
-        }).await
+        let endpoint = self.get_best_endpoint()?;
+        let client = self.clients.get(&endpoint.url)
+            .ok_or_else(|| BundlerError::Rpc(format!("Client not found for endpoint: {}", endpoint.url)))?;
+        
+        client.simulate_transaction_with_config(transaction, config)
+            .map(|response| response.value)
+            .map_err(|e| BundlerError::Rpc(format!("Simulation failed: {}", e)))
     }
 
     /// Get the latest blockhash
     pub async fn get_latest_blockhash(&self) -> BundlerResult<Hash> {
-        self.execute_with_failover(|client| {
-            client.get_latest_blockhash()
-        }).await
+        let endpoint = self.get_best_endpoint()?;
+        let client = self.clients.get(&endpoint.url)
+            .ok_or_else(|| BundlerError::Rpc(format!("Client not found for endpoint: {}", endpoint.url)))?;
+        
+        client.get_latest_blockhash()
+            .map_err(|e| BundlerError::Rpc(format!("Failed to get blockhash: {}", e)))
     }
 
     /// Get recent prioritization fees
@@ -260,24 +267,35 @@ impl SolanaRpcClient {
 
     /// Get transaction status
     pub async fn get_transaction(&self, signature: &Signature) -> BundlerResult<Option<solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta>> {
-        self.execute_with_failover(|client| {
-            client.get_transaction(signature, solana_client::rpc_config::RpcTransactionConfig::default())
-        }).await
+        let endpoint = self.get_best_endpoint()?;
+        let client = self.clients.get(&endpoint.url)
+            .ok_or_else(|| BundlerError::Rpc(format!("Client not found for endpoint: {}", endpoint.url)))?;
+        
+        client.get_transaction_with_config(signature, solana_client::rpc_config::RpcTransactionConfig::default())
+            .map(|tx| Some(tx))
+            .map_err(|e| BundlerError::Rpc(format!("Failed to get transaction: {}", e)))
     }
 
     /// Check if a transaction is confirmed at the specified commitment level
     pub async fn confirm_transaction(&self, signature: &Signature, commitment: CommitmentLevel) -> BundlerResult<bool> {
-        self.execute_with_failover(|client| {
-            client.confirm_transaction_with_commitment(signature, CommitmentConfig { commitment })
-                .map(|response| response.value)
-        }).await
+        let endpoint = self.get_best_endpoint()?;
+        let client = self.clients.get(&endpoint.url)
+            .ok_or_else(|| BundlerError::Rpc(format!("Client not found for endpoint: {}", endpoint.url)))?;
+        
+        client.confirm_transaction_with_commitment(signature, CommitmentConfig { commitment })
+            .map(|response| response.value)
+            .map_err(|e| BundlerError::Rpc(format!("Failed to confirm transaction: {}", e)))
     }
 
     /// Get account information
     pub async fn get_account(&self, pubkey: &Pubkey) -> BundlerResult<Option<solana_sdk::account::Account>> {
-        self.execute_with_failover(|client| {
-            client.get_account(pubkey)
-        }).await
+        let endpoint = self.get_best_endpoint()?;
+        let client = self.clients.get(&endpoint.url)
+            .ok_or_else(|| BundlerError::Rpc(format!("Client not found for endpoint: {}", endpoint.url)))?;
+        
+        client.get_account(pubkey)
+            .map(|account| Some(account))
+            .map_err(|e| BundlerError::Rpc(format!("Failed to get account: {}", e)))
     }
 
     /// Record a successful operation for health monitoring

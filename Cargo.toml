@@ -13,7 +13,7 @@ version = "0.1.0"
 edition = "2021"
 license = "MIT"
 authors = ["Solana Bundler Team"]
-repository = "https://github.com/your-org/solana-bundler"
+repository = "https://github.com/DevBoher22/solana-transaction-bundler"
 description = "Production-ready Solana transaction bundler with low latency and high success rate"
 
 [workspace.dependencies]
@@ -81,6 +81,15 @@ mockall = "0.12"
 wiremock = "0.5"
 tempfile = "3.8"
 
+# SPL Token dependencies
+spl-token = "4.0"
+spl-associated-token-account = "2.3"
+
+# Additional utilities
+criterion = { version = "0.5", features = ["html_reports"] }
+async-trait = "0.1"
+bs58 = "0.5"
+
 [profile.release]
 lto = true
 codegen-units = 1
@@ -94,15 +103,6 @@ opt-level = 0
 [profile.test]
 debug = true
 opt-level = 1
-
-# SPL Token dependencies
-spl-token = "4.0"
-spl-associated-token-account = "2.3"
-
-# Benchmark dependencies
-criterion = { version = "0.5", features = ["html_reports"] }
-async-trait = "0.1"
-bs58 = "0.5"
 
 # Benchmark configuration is defined in individual crates
 

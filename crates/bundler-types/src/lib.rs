@@ -268,6 +268,9 @@ pub enum ErrorType {
     /// Invalid transaction format
     InvalidTransaction,
     
+    /// Transaction simulation failed
+    Simulation,
+    
     /// Unknown or unclassified error
     Unknown,
 }
@@ -314,6 +317,9 @@ pub struct FeeStrategy {
     
     /// Maximum fee bump attempts
     pub max_bump_attempts: u32,
+    
+    /// Maximum price in lamports per transaction
+    pub max_price_lamports: u64,
 }
 
 impl Default for FeeStrategy {
@@ -324,6 +330,7 @@ impl Default for FeeStrategy {
             adaptive: true,
             enable_bump: true,
             max_bump_attempts: 3,
+            max_price_lamports: 100_000_000, // 0.1 SOL max
         }
     }
 }

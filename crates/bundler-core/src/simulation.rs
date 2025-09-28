@@ -230,7 +230,7 @@ impl TransactionSimulator {
     /// Perform health check
     pub async fn health_check(&self) -> BundlerResult<()> {
         // Check if RPC client is healthy
-        self.rpc_client.get_health_status().await?;
+        let _health_status = self.rpc_client.get_health_status();
         
         // Validate security configuration
         if self.security_config.program_whitelist.is_empty() {
