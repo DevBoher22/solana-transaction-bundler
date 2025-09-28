@@ -177,7 +177,7 @@ impl CliRunner {
             // Set a dummy blockhash for simulation
             transaction.message.recent_blockhash = solana_sdk::hash::Hash::new_unique();
             
-            match self.service.simulator.simulate_transaction(&transaction).await {
+            match self.service.simulate_transaction(&transaction).await {
                 Ok(result) => {
                     println!("✅ Simulation successful");
                     if let Some(cu) = result.compute_units_consumed {

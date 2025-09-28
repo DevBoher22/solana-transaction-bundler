@@ -1,5 +1,5 @@
 # Multi-stage build for optimized production image
-FROM rust:1.75-slim as builder
+FROM rust:1.82-slim as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -15,7 +15,8 @@ WORKDIR /app
 COPY Cargo.toml ./
 COPY crates/ ./crates/
 
-# Note: Cargo.lock will be generated during build if not present
+# Copy Cargo.lock if it exists, otherwise it will be generated
+COPY Cargo.loc[k] ./
 
 # Build dependencies (this layer will be cached)
 RUN cargo build --release --bin bundler-cli --bin bundler-service

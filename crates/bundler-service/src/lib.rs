@@ -1,16 +1,18 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::Json,
     routing::{get, post},
     Router,
 };
-use bundler_config::BundlerConfig;
 use bundler_core::BundlerService;
-use bundler_types::{BundleRequest, BundleResponse, HealthStatus};
+use bundler_types::{BundleRequest, BundleResponse, BundlerError, BundlerResult};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::sync::Arc;
 use tokio::net::TcpListener;
+use tower::ServiceBuilder;
+use tower_http::cors::CorsLayer;
 use tracing::{error, info, warn};
 
 /// HTTP service for the Solana transaction bundler
@@ -215,7 +217,7 @@ async fn simulate_bundle(
         // Set a dummy blockhash for simulation
         transaction.message.recent_blockhash = solana_sdk::hash::Hash::new_unique();
         
-        match service.simulator.simulate_transaction(&transaction).await {
+        match service.simulate_transaction(&transaction).await {
             Ok(result) => {
                 simulation_results.push(serde_json::json!({
                     "instruction_index": i,
@@ -261,7 +263,7 @@ async fn get_transaction_status(
         }
     };
     
-    match service.rpc_client.get_transaction(&signature).await {
+    match service.get_transaction(&signature).await {
         Ok(Some(tx)) => {
             let status = if let Some(meta) = &tx.transaction.meta {
                 if meta.err.is_none() {
@@ -280,7 +282,7 @@ async fn get_transaction_status(
             
             let logs = if params.verbose.unwrap_or(false) {
                 tx.transaction.meta.as_ref()
-                    .and_then(|meta| meta.log_messages.clone())
+                    .and_then(|meta| Some(meta.log_messages.clone()))
             } else {
                 None
             };
@@ -292,7 +294,7 @@ async fn get_transaction_status(
             Ok(Json(TransactionStatusResponse {
                 signature: signature_str,
                 status,
-                slot: tx.slot,
+                slot: Some(tx.slot),
                 fee,
                 compute_units,
                 logs,
@@ -327,30 +329,31 @@ async fn health_check(
 ) -> Result<Json<HealthResponse>, (StatusCode, Json<ErrorResponse>)> {
     match service.health_check().await {
         Ok(health) => {
-            let components = health.components
-                .into_iter()
-                .map(|(name, component)| {
-                    (name, ComponentHealth {
-                        healthy: component.healthy,
-                        message: component.message,
-                        last_success: component.last_success.map(|dt| dt.to_rfc3339()),
+            let components = health
+                .iter()
+                .map(|(name, status)| {
+                    (name.clone(), ComponentHealth {
+                        healthy: status == "healthy",
+                        message: Some(status.clone()),
+                        last_success: Some(Utc::now().to_rfc3339()),
                     })
                 })
                 .collect();
             
-            let status_code = if health.healthy {
+            let all_healthy = health.values().all(|status| status == "healthy");
+            let status_code = if all_healthy {
                 StatusCode::OK
             } else {
                 StatusCode::SERVICE_UNAVAILABLE
             };
             
             let response = HealthResponse {
-                healthy: health.healthy,
-                timestamp: health.timestamp.to_rfc3339(),
+                healthy: all_healthy,
+                timestamp: Utc::now().to_rfc3339(),
                 components,
             };
             
-            Ok((status_code, Json(response)).into())
+            Ok(Json(response))
         }
         Err(e) => {
             error!("Health check failed: {}", e);

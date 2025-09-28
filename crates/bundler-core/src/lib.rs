@@ -138,6 +138,16 @@ impl BundlerService {
         self.signing_manager.get_fee_payer_pubkey().await
     }
     
+    /// Simulate a transaction
+    pub async fn simulate_transaction(&self, transaction: &solana_sdk::transaction::Transaction) -> BundlerResult<crate::simulation::SimulationResult> {
+        self.simulator.simulate_transaction(transaction).await
+    }
+    
+    /// Get transaction by signature
+    pub async fn get_transaction(&self, signature: &solana_sdk::signature::Signature) -> BundlerResult<Option<solana_transaction_status::EncodedConfirmedTransactionWithStatusMeta>> {
+        self.rpc_client.get_transaction(signature).await
+    }
+    
     /// Get service information
     pub async fn get_info(&self) -> HashMap<String, serde_json::Value> {
         let mut stats = HashMap::new();
