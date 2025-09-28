@@ -196,7 +196,7 @@ async fn simulate_bundle(
     
     for (i, instruction) in instructions.iter().enumerate() {
         // Create a simple transaction for simulation
-        let fee_payer = match service.signing_manager.fee_payer_pubkey().await {
+        let fee_payer = match service.get_fee_payer_pubkey().await {
             Ok(pubkey) => pubkey,
             Err(e) => {
                 return Err((
@@ -277,12 +277,17 @@ async fn get_transaction_status(
             
             let fee = tx.transaction.meta.as_ref().map(|meta| meta.fee);
             let compute_units = tx.transaction.meta.as_ref()
-                .and_then(|meta| meta.compute_units_consumed.0)
-                .map(|cu| cu as u64);
+                .and_then(|meta| match meta.compute_units_consumed {
+                    solana_transaction_status_client_types::option_serializer::OptionSerializer::Some(cu) => Some(cu as u64),
+                    _ => None,
+                });
             
             let logs = if params.verbose.unwrap_or(false) {
                 tx.transaction.meta.as_ref()
-                    .and_then(|meta| meta.log_messages.0.clone())
+                    .and_then(|meta| match &meta.log_messages {
+                        solana_transaction_status_client_types::option_serializer::OptionSerializer::Some(logs) => Some(logs.clone()),
+                        _ => None,
+                    })
             } else {
                 None
             };

@@ -38,7 +38,7 @@ RUN groupadd -r bundler && useradd -r -g bundler bundler
 WORKDIR /app
 
 # Copy binaries from builder stage
-COPY --from=builder /app/target/release/bundler-cli /usr/local/bin/bundler-cli
+COPY --from=builder /app/target/release/bundler /usr/local/bin/bundler
 COPY --from=builder /app/target/release/bundler-service /usr/local/bin/bundler-service
 
 # Copy configuration examples
@@ -66,7 +66,7 @@ EXPOSE 8080 9090
 ENV RUST_LOG=info
 
 # Default command with config fallback
-CMD ["/bin/bash", "-c", "if [ ! -f /app/bundler.config.toml ]; then cp /app/bundler.config.toml.default /app/bundler.config.toml; fi && bundler-service --config /app/bundler.config.toml"]
+CMD ["/bin/bash", "-c", "if [ ! -f /app/bundler.config.toml ]; then cp /app/bundler.config.toml.default /app/bundler.config.toml; fi && /usr/local/bin/bundler-service --config /app/bundler.config.toml"]
 
 # Labels for metadata
 LABEL org.opencontainers.image.title="Solana Transaction Bundler"
