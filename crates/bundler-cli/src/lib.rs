@@ -168,7 +168,7 @@ impl CliRunner {
             println!("Simulating instruction {} of {}", i + 1, instructions.len());
             
             // Create a simple transaction for simulation
-            let fee_payer = self.service.signing_manager.fee_payer_pubkey().await?;
+            let fee_payer = self.service.get_fee_payer_pubkey().await?;
             let mut transaction = solana_sdk::transaction::Transaction::new_with_payer(
                 &[instruction.clone()],
                 Some(&fee_payer),

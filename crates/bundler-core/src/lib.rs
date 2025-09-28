@@ -56,6 +56,7 @@ impl BundlerService {
             Arc::clone(&fee_manager),
             Arc::clone(&signing_manager),
             Arc::clone(&simulator),
+            &config,
         ));
         
         info!("Bundler service initialized successfully");
@@ -132,8 +133,13 @@ impl BundlerService {
         Ok(health)
     }
     
-    /// Get service statistics
-    pub async fn get_stats(&self) -> HashMap<String, serde_json::Value> {
+    /// Get fee payer public key
+    pub async fn get_fee_payer_pubkey(&self) -> BundlerResult<solana_sdk::pubkey::Pubkey> {
+        self.signing_manager.get_fee_payer_pubkey().await
+    }
+    
+    /// Get service information
+    pub async fn get_info(&self) -> HashMap<String, serde_json::Value> {
         let mut stats = HashMap::new();
         
         // Add basic service info
@@ -171,7 +177,7 @@ impl BundlerService {
         summary.insert("rpc_endpoints_count".to_string(), 
                       serde_json::Value::Number(self.config.rpc.endpoints.len().into()));
         summary.insert("fee_strategy".to_string(), 
-                      serde_json::Value::String(format!("{:?}", self.config.fees.strategy)));
+                      serde_json::Value::String(format!("{:?}", self.config.fees)));
         summary.insert("security_enabled".to_string(), 
                       serde_json::Value::Bool(!self.config.security.program_whitelist.is_empty()));
         summary.insert("service_port".to_string(), 

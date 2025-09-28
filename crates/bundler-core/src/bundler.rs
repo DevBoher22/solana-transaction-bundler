@@ -385,8 +385,10 @@ impl TransactionBundler {
             Some(tx) => {
                 let compute_units = tx.transaction.meta
                     .as_ref()
-                    .and_then(|meta| meta.compute_units_consumed)
-                    .map(|cu| cu as ComputeUnits);
+                    .and_then(|meta| match &meta.compute_units_consumed {
+                        solana_transaction_status::option_serializer::OptionSerializer::Some(cu) => Some(*cu as ComputeUnits),
+                        _ => None,
+                    });
                 
                 let fee_paid = tx.transaction.meta
                     .as_ref()
@@ -394,7 +396,10 @@ impl TransactionBundler {
                 
                 let logs = tx.transaction.meta
                     .as_ref()
-                    .and_then(|meta| meta.log_messages.clone())
+                    .and_then(|meta| match &meta.log_messages {
+                        solana_transaction_status::option_serializer::OptionSerializer::Some(logs) => Some(logs.clone()),
+                        _ => None,
+                    })
                     .unwrap_or_default();
                 
                 Ok((compute_units, fee_paid, logs))

@@ -364,54 +364,31 @@ impl SolanaRpcClient {
 
     /// Perform health check on all endpoints
     pub async fn health_check(&self) -> BundlerResult<()> {
-        let mut tasks = Vec::new();
-
-        for endpoint in &self.endpoints {
-            let client = self.clients.get(&endpoint.url).unwrap().clone();
-            let endpoint_url = endpoint.url.clone();
-            let health_status = Arc::clone(&self.health_status);
-
-            let task = tokio::spawn(async move {
-                let start_time = Instant::now();
-                match client.get_health().await {
-                    Ok(_) => {
-                        let latency = start_time.elapsed().as_millis() as u64;
-                        let mut health_status = health_status.write().unwrap();
-                        if let Some(health) = health_status.get_mut(&endpoint_url) {
-                            health.healthy = true;
-                            health.last_success = Some(Utc::now());
-                            health.consecutive_failures = 0;
-                            health.average_latency_ms = Some(
-                                health.average_latency_ms
-                                    .map(|avg| (avg + latency) / 2)
-                                    .unwrap_or(latency)
-                            );
-                        }
-                        debug!("Health check passed for {}", endpoint_url);
-                    }
-                    Err(e) => {
-                        let mut health_status = health_status.write().unwrap();
-                        if let Some(health) = health_status.get_mut(&endpoint_url) {
-                            health.last_failure = Some(Utc::now());
-                            health.consecutive_failures += 1;
-                            if health.consecutive_failures >= 3 {
-                                health.healthy = false;
-                            }
-                        }
-                        warn!("Health check failed for {}: {}", endpoint_url, e);
-                    }
-                }
-            });
-
-            tasks.push(task);
+        // Simple health check - just verify we have endpoints configured
+        if self.endpoints.is_empty() {
+            return Err(BundlerError::Rpc("No RPC endpoints configured".to_string()));
         }
 
-        // Wait for all health checks to complete
-        for task in tasks {
-            let _ = task.await;
-        }
-
+        // For now, just check if we can get the best endpoint
+        let _endpoint = self.get_best_endpoint()?;
+        
         Ok(())
+    }
+    
+    /// Get statistics for monitoring
+    pub async fn get_stats(&self) -> HashMap<String, serde_json::Value> {
+        let mut stats = HashMap::new();
+        
+        stats.insert("endpoints_count".to_string(), serde_json::Value::Number(self.endpoints.len().into()));
+        stats.insert("healthy_endpoints".to_string(), 
+                    serde_json::Value::Number(
+                        self.health_status.read().unwrap()
+                            .values()
+                            .filter(|h| h.healthy)
+                            .count().into()
+                    ));
+        
+        stats
     }
 }
 

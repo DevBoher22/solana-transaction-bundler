@@ -4,7 +4,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     transaction::Transaction,
 };
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 use tracing::{debug, error, info, warn};
 
 use crate::rpc::SolanaRpcClient;
@@ -243,6 +243,8 @@ impl TransactionSimulator {
         
         Ok(())
     }
+    
+
 }
 
 #[cfg(test)]

@@ -1,13 +1,14 @@
 use bundler_config::SigningConfig;
 use bundler_types::{BundlerError, BundlerResult, SignerConfig, SignerType};
 use solana_sdk::{
-    pubkey::Pubkey,
     signature::{Keypair, Signature, Signer},
     transaction::Transaction,
+    pubkey::Pubkey,
 };
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::RwLock;
+use tokio::time::{timeout, Duration};
 use tracing::{debug, error, info, warn};
+use bs58;
 
 /// Enum for different key provider types
 #[derive(Debug)]
@@ -289,6 +290,13 @@ impl SigningManager {
     pub fn get_signer(&self, alias: &str) -> Option<&KeyProvider> {
         self.additional_signers.get(alias)
     }
+    
+    /// Get fee payer public key
+    pub async fn get_fee_payer_pubkey(&self) -> BundlerResult<Pubkey> {
+        self.fee_payer.public_key().await
+    }
+    
+
     
     /// Perform health check on all signers
     pub async fn health_check(&self) -> BundlerResult<()> {

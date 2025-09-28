@@ -1,4 +1,4 @@
-use bundler_types::{BundlerError, BundlerResult, ComputePrice, FeeStrategy, Lamports};
+use bundler_types::{BundlerError, BundlerResult, FeeStrategy, Lamports};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use solana_sdk::{
@@ -6,11 +6,9 @@ use solana_sdk::{
     instruction::Instruction,
     pubkey::Pubkey,
 };
-use std::{
-    collections::VecDeque,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, RwLock};
+use tokio::time::{sleep, Duration};
 use tracing::{debug, info, warn};
 
 use crate::rpc::SolanaRpcClient;
@@ -280,6 +278,21 @@ impl FeeManager {
         Ok(final_fee)
     }
 
+    /// Get statistics for monitoring
+    pub async fn get_stats(&self) -> HashMap<String, serde_json::Value> {
+        let mut stats = HashMap::new();
+        
+        stats.insert("base_percentile".to_string(), serde_json::Value::Number(self.strategy.base_percentile.into()));
+        stats.insert("buffer_percent".to_string(), serde_json::Value::Number(self.strategy.buffer_percent.into()));
+        stats.insert("adaptive_enabled".to_string(), serde_json::Value::Bool(self.strategy.adaptive));
+        
+        let fee_stats = self.get_fee_statistics();
+        stats.insert("avg_fee".to_string(), serde_json::Value::Number(fee_stats.avg_fee.into()));
+        stats.insert("sample_count".to_string(), serde_json::Value::Number(fee_stats.sample_count.into()));
+        
+        stats
+    }
+    
     /// Get current fee statistics
     pub fn get_fee_statistics(&self) -> FeeStatistics {
         let history = self.fee_history.read().unwrap();
