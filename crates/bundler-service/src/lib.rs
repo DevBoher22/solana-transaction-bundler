@@ -426,7 +426,10 @@ mod tests {
     use super::*;
     use axum_test::TestServer;
     use bundler_config::BundlerConfigBuilder;
+    use bundler_types::{BundleRequest, ComputeConfig, ComputeLimit, ComputePrice, InstructionData};
+    use solana_sdk::{pubkey::Pubkey, instruction::AccountMeta, signature::Signature};
     use serde_json::json;
+    use uuid::Uuid;
 
     async fn create_test_service() -> HttpService {
         let config = BundlerConfigBuilder::new()
@@ -435,6 +438,34 @@ mod tests {
             .unwrap();
         
         HttpService::new(config).await.unwrap()
+    }
+
+    fn create_test_bundle_request() -> BundleRequest {
+        BundleRequest {
+            request_id: Uuid::new_v4(),
+            atomic: true,
+            compute: ComputeConfig {
+                limit: ComputeLimit::Fixed(200000),
+                price: ComputePrice::Fixed(1000),
+                max_price_lamports: 50000,
+            },
+            alt_tables: vec![],
+            instructions: vec![
+                InstructionData {
+                    program_id: Pubkey::new_unique(),
+                    keys: vec![
+                        AccountMeta {
+                            pubkey: Pubkey::new_unique(),
+                            is_signer: true,
+                            is_writable: true,
+                        }
+                    ],
+                    data_b64: base64::engine::general_purpose::STANDARD.encode(&[1, 2, 3, 4]),
+                }
+            ],
+            signers: vec![],
+            metadata: std::collections::HashMap::new(),
+        }
     }
 
     #[tokio::test]
@@ -447,6 +478,11 @@ mod tests {
         
         // Should return some response (might be unhealthy in test environment)
         assert!(response.status_code().is_success() || response.status_code().is_server_error());
+        
+        // Check response structure
+        let body: serde_json::Value = response.json();
+        assert!(body.get("healthy").is_some());
+        assert!(body.get("timestamp").is_some());
     }
 
     #[tokio::test]
@@ -462,6 +498,7 @@ mod tests {
         let body: serde_json::Value = response.json();
         assert!(body.get("name").is_some());
         assert!(body.get("version").is_some());
+        assert!(body.get("description").is_some());
     }
 
     #[tokio::test]
@@ -476,6 +513,74 @@ mod tests {
         
         let body: serde_json::Value = response.json();
         assert!(body.get("message").is_some());
+        assert!(body.get("endpoints").is_some());
+    }
+
+    #[tokio::test]
+    async fn test_bundle_submit_endpoint() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let bundle_request = create_test_bundle_request();
+        
+        let response = server
+            .post("/v1/bundle")
+            .json(&bundle_request)
+            .await;
+        
+        // May fail due to network issues, but should handle the request structure
+        println!("Bundle submit response status: {}", response.status_code());
+        
+        // Check that it's not a 404 (endpoint exists)
+        assert_ne!(response.status_code(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_bundle_submit_invalid_json() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server
+            .post("/v1/bundle")
+            .json(&json!({"invalid": "request"}))
+            .await;
+        
+        assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
+        
+        let body: ErrorResponse = response.json();
+        assert!(body.error.contains("Invalid") || body.error.contains("missing"));
+    }
+
+    #[tokio::test]
+    async fn test_bundle_submit_empty_body() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server
+            .post("/v1/bundle")
+            .text("")
+            .await;
+        
+        assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_status_endpoint_with_valid_signature() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let signature = Signature::new_unique();
+        let response = server.get(&format!("/v1/status/{}", signature)).await;
+        
+        // Should not be a 400 (bad request) for valid signature format
+        assert_ne!(response.status_code(), StatusCode::BAD_REQUEST);
+        
+        // May be 404 (not found) or other status depending on implementation
+        println!("Status endpoint response: {}", response.status_code());
     }
 
     #[tokio::test]
@@ -490,5 +595,160 @@ mod tests {
         
         let body: ErrorResponse = response.json();
         assert!(body.error.contains("Invalid signature format"));
+    }
+
+    #[tokio::test]
+    async fn test_cors_headers() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server.get("/v1/info").await;
+        
+        // Check for CORS headers
+        let headers = response.headers();
+        // CORS headers might be present depending on configuration
+        println!("Response headers: {:?}", headers);
+    }
+
+    #[tokio::test]
+    async fn test_content_type_headers() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server.get("/v1/info").await;
+        
+        assert!(response.status_code().is_success());
+        
+        // Should return JSON content type
+        let content_type = response.headers().get("content-type");
+        if let Some(ct) = content_type {
+            assert!(ct.to_str().unwrap().contains("application/json"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_large_request_body() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        // Create a large bundle request
+        let mut large_request = create_test_bundle_request();
+        
+        // Add many instructions to make it large
+        for _ in 0..100 {
+            large_request.instructions.push(InstructionData {
+                program_id: Pubkey::new_unique(),
+                keys: vec![
+                    AccountMeta {
+                        pubkey: Pubkey::new_unique(),
+                        is_signer: false,
+                        is_writable: false,
+                    }
+                ],
+                data_b64: base64::engine::general_purpose::STANDARD.encode(&vec![0u8; 1000]),
+            });
+        }
+        
+        let response = server
+            .post("/v1/bundle")
+            .json(&large_request)
+            .await;
+        
+        // Should handle large requests (may fail due to size limits or network issues)
+        println!("Large request response: {}", response.status_code());
+        
+        // Should not be a 404 (endpoint exists)
+        assert_ne!(response.status_code(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_unsupported_http_methods() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        // Test unsupported methods on various endpoints
+        let response = server.put("/v1/info").await;
+        assert_eq!(response.status_code(), StatusCode::METHOD_NOT_ALLOWED);
+        
+        let response = server.delete("/v1/health").await;
+        assert_eq!(response.status_code(), StatusCode::METHOD_NOT_ALLOWED);
+        
+        let response = server.patch("/v1/bundle").await;
+        assert_eq!(response.status_code(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    #[tokio::test]
+    async fn test_nonexistent_endpoints() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server.get("/v1/nonexistent").await;
+        assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+        
+        let response = server.get("/v2/info").await;
+        assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+        
+        let response = server.get("/invalid").await;
+        assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_request_timeout_handling() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        // Test that the service can handle requests without timing out immediately
+        let start = std::time::Instant::now();
+        let response = server.get("/v1/info").await;
+        let duration = start.elapsed();
+        
+        assert!(response.status_code().is_success());
+        assert!(duration.as_secs() < 30); // Should respond quickly for info endpoint
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_requests() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        // Test multiple concurrent requests
+        let mut handles = vec![];
+        
+        for _ in 0..10 {
+            let server_clone = server.clone();
+            let handle = tokio::spawn(async move {
+                server_clone.get("/v1/info").await
+            });
+            handles.push(handle);
+        }
+        
+        // Wait for all requests to complete
+        for handle in handles {
+            let response = handle.await.unwrap();
+            assert!(response.status_code().is_success());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_error_response_format() {
+        let service = create_test_service().await;
+        let app = service.create_router();
+        let server = TestServer::new(app).unwrap();
+        
+        let response = server.get("/v1/status/invalid").await;
+        
+        assert_eq!(response.status_code(), StatusCode::BAD_REQUEST);
+        
+        // Check error response format
+        let body: ErrorResponse = response.json();
+        assert!(!body.error.is_empty());
+        assert!(body.timestamp.is_some());
     }
 }

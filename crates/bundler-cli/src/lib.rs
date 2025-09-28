@@ -523,3 +523,319 @@ pub async fn run_cli() -> Result<()> {
     
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::NamedTempFile;
+    use std::io::Write;
+    use bundler_types::{ComputeConfig, ComputeLimit, ComputePrice, InstructionData};
+    use solana_sdk::{pubkey::Pubkey, instruction::AccountMeta};
+    use uuid::Uuid;
+
+    #[test]
+    fn test_cli_parsing() {
+        // Test basic CLI parsing
+        let args = vec!["bundler", "submit", "--config", "test.toml", "bundle.json"];
+        let cli = Cli::try_parse_from(args).unwrap();
+        
+        assert_eq!(cli.config, "test.toml");
+        match cli.command {
+            Commands::Submit { bundle_file } => {
+                assert_eq!(bundle_file, "bundle.json");
+            }
+            _ => panic!("Expected Submit command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_with_verbose_flag() {
+        let args = vec!["bundler", "--verbose", "status"];
+        let cli = Cli::try_parse_from(args).unwrap();
+        
+        assert_eq!(cli.log_level, "debug");
+        match cli.command {
+            Commands::Status => {},
+            _ => panic!("Expected Status command"),
+        }
+    }
+
+    #[test]
+    fn test_cli_with_custom_log_format() {
+        let args = vec!["bundler", "--log-format", "json", "health"];
+        let cli = Cli::try_parse_from(args).unwrap();
+        
+        assert_eq!(cli.log_format, "json");
+        match cli.command {
+            Commands::Health => {},
+            _ => panic!("Expected Health command"),
+        }
+    }
+
+    #[test]
+    fn test_bundle_request_creation() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let bundle_request = BundleRequest {
+            request_id: Uuid::new_v4(),
+            atomic: true,
+            compute: ComputeConfig {
+                limit: ComputeLimit::Fixed(200000),
+                price: ComputePrice::Fixed(1000),
+                max_price_lamports: 50000,
+            },
+            alt_tables: vec![],
+            instructions: vec![
+                InstructionData {
+                    program_id: Pubkey::new_unique(),
+                    keys: vec![
+                        AccountMeta {
+                            pubkey: Pubkey::new_unique(),
+                            is_signer: true,
+                            is_writable: true,
+                        }
+                    ],
+                    data_b64: base64::engine::general_purpose::STANDARD.encode(&[1, 2, 3, 4]),
+                }
+            ],
+            signers: vec![],
+            metadata: std::collections::HashMap::new(),
+        };
+
+        let json = serde_json::to_string_pretty(&bundle_request).unwrap();
+        temp_file.write_all(json.as_bytes()).unwrap();
+        temp_file.flush().unwrap();
+
+        // Test that we can read the bundle request back
+        let loaded_request = load_bundle_request(temp_file.path()).unwrap();
+        assert_eq!(bundle_request.request_id, loaded_request.request_id);
+        assert_eq!(bundle_request.atomic, loaded_request.atomic);
+        assert_eq!(bundle_request.instructions.len(), loaded_request.instructions.len());
+    }
+
+    #[test]
+    fn test_invalid_bundle_file() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(b"invalid json").unwrap();
+        temp_file.flush().unwrap();
+
+        let result = load_bundle_request(temp_file.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_nonexistent_bundle_file() {
+        let result = load_bundle_request("/nonexistent/file.json");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_config_file_loading() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let config_content = r#"
+[rpc]
+commitment = "confirmed"
+timeout_seconds = 30
+
+[[rpc.endpoints]]
+url = "https://api.devnet.solana.com"
+weight = 100
+supports_jito = false
+
+[fees]
+base_fee_lamports = 5000
+priority_fee_lamports = 1000
+
+[security]
+max_compute_units = 1400000
+max_fee_lamports = 100000
+validate_instructions = true
+max_bundle_size = 5
+
+[logging]
+level = "info"
+format = "pretty"
+file_enabled = false
+include_timestamps = true
+
+[service]
+bind_address = "127.0.0.1"
+port = 8080
+request_timeout_seconds = 30
+
+[performance]
+worker_threads = 4
+batch_size = 10
+simulation_cache_size = 1000
+cache_ttl_seconds = 300
+metrics_enabled = true
+"#;
+        temp_file.write_all(config_content.as_bytes()).unwrap();
+        temp_file.flush().unwrap();
+
+        // Test that config loads successfully
+        let config = BundlerConfig::load_from_path(temp_file.path()).unwrap();
+        assert_eq!(config.rpc.commitment, "confirmed");
+        assert_eq!(config.rpc.timeout_seconds, 30);
+        assert_eq!(config.fees.base_fee_lamports, 5000);
+        assert_eq!(config.security.max_compute_units, 1400000);
+        assert_eq!(config.logging.level, "info");
+        assert_eq!(config.service.port, 8080);
+        assert_eq!(config.performance.worker_threads, 4);
+    }
+
+    #[test]
+    fn test_invalid_config_file() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write_all(b"invalid toml content [[[").unwrap();
+        temp_file.flush().unwrap();
+
+        let result = BundlerConfig::load_from_path(temp_file.path());
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cli_runner_creation() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let config_content = r#"
+[rpc]
+commitment = "confirmed"
+
+[[rpc.endpoints]]
+url = "https://api.devnet.solana.com"
+weight = 100
+supports_jito = false
+
+[fees]
+base_fee_lamports = 5000
+
+[security]
+max_compute_units = 1400000
+
+[logging]
+level = "info"
+
+[service]
+port = 8080
+
+[performance]
+worker_threads = 4
+"#;
+        temp_file.write_all(config_content.as_bytes()).unwrap();
+        temp_file.flush().unwrap();
+
+        // Test CLI runner creation (may fail due to network dependencies)
+        let result = CliRunner::new(temp_file.path().to_str().unwrap()).await;
+        // We don't assert success since we don't have real network access
+        // but the code should compile and attempt to create the runner
+        println!("CLI runner creation result: {:?}", result.is_ok());
+    }
+
+    #[test]
+    fn test_logging_initialization() {
+        // Test different log levels
+        let result = init_logging("info", "pretty");
+        // This might fail in test environment, but should compile
+        println!("Logging init result: {:?}", result.is_ok());
+
+        let result = init_logging("debug", "json");
+        println!("JSON logging init result: {:?}", result.is_ok());
+
+        // Test invalid format
+        let result = init_logging("info", "invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_command_variants() {
+        // Test all command variants can be parsed
+        let submit_args = vec!["bundler", "submit", "bundle.json"];
+        let cli = Cli::try_parse_from(submit_args).unwrap();
+        assert!(matches!(cli.command, Commands::Submit { .. }));
+
+        let status_args = vec!["bundler", "status"];
+        let cli = Cli::try_parse_from(status_args).unwrap();
+        assert!(matches!(cli.command, Commands::Status));
+
+        let health_args = vec!["bundler", "health"];
+        let cli = Cli::try_parse_from(health_args).unwrap();
+        assert!(matches!(cli.command, Commands::Health));
+
+        let config_args = vec!["bundler", "config", "show"];
+        let cli = Cli::try_parse_from(config_args).unwrap();
+        assert!(matches!(cli.command, Commands::Config { .. }));
+    }
+
+    #[test]
+    fn test_config_subcommands() {
+        let show_args = vec!["bundler", "config", "show"];
+        let cli = Cli::try_parse_from(show_args).unwrap();
+        match cli.command {
+            Commands::Config { subcommand } => {
+                assert!(matches!(subcommand, ConfigSubcommand::Show));
+            }
+            _ => panic!("Expected Config command"),
+        }
+
+        let validate_args = vec!["bundler", "config", "validate"];
+        let cli = Cli::try_parse_from(validate_args).unwrap();
+        match cli.command {
+            Commands::Config { subcommand } => {
+                assert!(matches!(subcommand, ConfigSubcommand::Validate));
+            }
+            _ => panic!("Expected Config command"),
+        }
+    }
+
+    #[test]
+    fn test_bundle_request_validation() {
+        // Test valid bundle request
+        let valid_request = BundleRequest {
+            request_id: Uuid::new_v4(),
+            atomic: true,
+            compute: ComputeConfig {
+                limit: ComputeLimit::Auto,
+                price: ComputePrice::Auto,
+                max_price_lamports: 50000,
+            },
+            alt_tables: vec![],
+            instructions: vec![
+                InstructionData {
+                    program_id: Pubkey::new_unique(),
+                    keys: vec![],
+                    data_b64: base64::engine::general_purpose::STANDARD.encode(&[]),
+                }
+            ],
+            signers: vec![],
+            metadata: std::collections::HashMap::new(),
+        };
+
+        // Should serialize and deserialize successfully
+        let json = serde_json::to_string(&valid_request).unwrap();
+        let deserialized: BundleRequest = serde_json::from_str(&json).unwrap();
+        assert_eq!(valid_request.request_id, deserialized.request_id);
+    }
+
+    #[test]
+    fn test_error_handling() {
+        // Test that CLI handles missing required arguments
+        let args = vec!["bundler", "submit"]; // Missing bundle file
+        let result = Cli::try_parse_from(args);
+        assert!(result.is_err());
+
+        // Test invalid log level
+        let args = vec!["bundler", "--log-level", "invalid", "status"];
+        let cli = Cli::try_parse_from(args).unwrap();
+        assert_eq!(cli.log_level, "invalid"); // CLI accepts it, validation happens later
+    }
+
+    #[test]
+    fn test_default_values() {
+        let args = vec!["bundler", "status"];
+        let cli = Cli::try_parse_from(args).unwrap();
+        
+        assert_eq!(cli.config, "bundler.config.toml");
+        assert_eq!(cli.log_level, "info");
+        assert_eq!(cli.log_format, "pretty");
+        assert!(!cli.verbose);
+    }
+}

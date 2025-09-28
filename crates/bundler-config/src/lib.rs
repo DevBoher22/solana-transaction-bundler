@@ -48,89 +48,37 @@ pub struct RpcConfig {
     #[serde(default = "default_rpc_timeout")]
     pub timeout_seconds: u64,
     
-    /// Maximum retries per request
+    /// Maximum number of retries
     #[serde(default = "default_max_retries")]
     pub max_retries: u32,
     
-    /// Base backoff delay in milliseconds
-    #[serde(default = "default_backoff_ms")]
-    pub backoff_base_ms: u64,
-    
-    /// Maximum backoff delay in milliseconds
-    #[serde(default = "default_max_backoff_ms")]
-    pub backoff_max_ms: u64,
-}
-
-fn default_commitment() -> String {
-    "confirmed".to_string()
-}
-
-fn default_rpc_timeout() -> u64 {
-    30
-}
-
-fn default_max_retries() -> u32 {
-    3
-}
-
-fn default_backoff_ms() -> u64 {
-    100
-}
-
-fn default_max_backoff_ms() -> u64 {
-    5000
+    /// Connection pool size
+    #[serde(default = "default_pool_size")]
+    pub pool_size: u32,
 }
 
 /// Security and validation configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {
-    /// Allowed program IDs (whitelist)
+    /// Maximum compute units per transaction
+    #[serde(default = "default_max_compute_units")]
+    pub max_compute_units: u32,
+    
+    /// Maximum fee per transaction (lamports)
+    #[serde(default = "default_max_fee_lamports")]
+    pub max_fee_lamports: u64,
+    
+    /// Program whitelist (empty = allow all)
+    #[serde(default)]
     pub program_whitelist: Vec<Pubkey>,
     
-    /// Optional account whitelist for additional security
-    pub account_whitelist: Option<Vec<Pubkey>>,
+    /// Whether to validate instructions
+    #[serde(default = "default_validate_instructions")]
+    pub validate_instructions: bool,
     
-    /// Maximum number of writable accounts per transaction
-    #[serde(default = "default_max_writable_accounts")]
-    pub max_writable_accounts: usize,
-    
-    /// Require simulation before submission
-    #[serde(default = "default_require_simulation")]
-    pub require_simulation: bool,
-    
-    /// API key for HTTP service authentication
-    pub api_key: Option<String>,
-    
-    /// Rate limiting configuration
-    pub rate_limit: RateLimitConfig,
-}
-
-fn default_max_writable_accounts() -> usize {
-    64 // Solana transaction limit
-}
-
-fn default_require_simulation() -> bool {
-    true
-}
-
-/// Rate limiting configuration
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RateLimitConfig {
-    /// Requests per minute per IP
-    #[serde(default = "default_requests_per_minute")]
-    pub requests_per_minute: u32,
-    
-    /// Burst allowance
-    #[serde(default = "default_burst_size")]
-    pub burst_size: u32,
-}
-
-fn default_requests_per_minute() -> u32 {
-    60
-}
-
-fn default_burst_size() -> u32 {
-    10
+    /// Maximum bundle size
+    #[serde(default = "default_max_bundle_size")]
+    pub max_bundle_size: u32,
 }
 
 /// Signing configuration
@@ -139,17 +87,13 @@ pub struct SigningConfig {
     /// Fee payer configuration
     pub fee_payer: SignerConfig,
     
-    /// Additional signers available
+    /// Additional signers
     #[serde(default)]
-    pub additional_signers: HashMap<String, SignerConfig>,
+    pub additional_signers: Vec<SignerConfig>,
     
-    /// Signing timeout in seconds
-    #[serde(default = "default_signing_timeout")]
-    pub timeout_seconds: u64,
-}
-
-fn default_signing_timeout() -> u64 {
-    10
+    /// Whether to use parallel signing
+    #[serde(default = "default_parallel_signing")]
+    pub parallel_signing: bool,
 }
 
 /// Logging configuration
@@ -163,105 +107,132 @@ pub struct LoggingConfig {
     #[serde(default = "default_log_format")]
     pub format: String,
     
-    /// Log file path (optional)
-    pub file: Option<String>,
+    /// Whether to log to file
+    #[serde(default)]
+    pub file_enabled: bool,
     
-    /// Enable request tracing
-    #[serde(default = "default_enable_tracing")]
-    pub enable_tracing: bool,
-}
-
-fn default_log_level() -> String {
-    "info".to_string()
-}
-
-fn default_log_format() -> String {
-    "json".to_string()
-}
-
-fn default_enable_tracing() -> bool {
-    true
+    /// Log file path
+    pub file_path: Option<String>,
+    
+    /// Whether to include timestamps
+    #[serde(default = "default_include_timestamps")]
+    pub include_timestamps: bool,
 }
 
 /// HTTP service configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServiceConfig {
-    /// Bind address
+    /// Server bind address
     #[serde(default = "default_bind_address")]
     pub bind_address: String,
     
-    /// Port to listen on
+    /// Server port
     #[serde(default = "default_port")]
     pub port: u16,
     
-    /// Enable CORS
-    #[serde(default = "default_enable_cors")]
-    pub enable_cors: bool,
-    
     /// Request timeout in seconds
-    #[serde(default = "default_service_timeout")]
-    pub timeout_seconds: u64,
+    #[serde(default = "default_request_timeout")]
+    pub request_timeout_seconds: u64,
     
-    /// Maximum request body size in bytes
+    /// Maximum request body size
     #[serde(default = "default_max_body_size")]
-    pub max_body_size: usize,
+    pub max_body_size_bytes: u64,
+    
+    /// CORS configuration
+    pub cors: CorsConfig,
+    
+    /// Rate limiting
+    pub rate_limit: RateLimitConfig,
 }
 
-fn default_bind_address() -> String {
-    "0.0.0.0".to_string()
+/// CORS configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CorsConfig {
+    /// Allowed origins
+    #[serde(default = "default_allowed_origins")]
+    pub allowed_origins: Vec<String>,
+    
+    /// Allowed methods
+    #[serde(default = "default_allowed_methods")]
+    pub allowed_methods: Vec<String>,
+    
+    /// Allowed headers
+    #[serde(default = "default_allowed_headers")]
+    pub allowed_headers: Vec<String>,
+    
+    /// Whether to allow credentials
+    #[serde(default)]
+    pub allow_credentials: bool,
 }
 
-fn default_port() -> u16 {
-    8080
-}
-
-fn default_enable_cors() -> bool {
-    true
-}
-
-fn default_service_timeout() -> u64 {
-    60
-}
-
-fn default_max_body_size() -> usize {
-    1024 * 1024 // 1MB
+/// Rate limiting configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitConfig {
+    /// Requests per minute per IP
+    #[serde(default = "default_requests_per_minute")]
+    pub requests_per_minute: u32,
+    
+    /// Burst size
+    #[serde(default = "default_burst_size")]
+    pub burst_size: u32,
+    
+    /// Whether rate limiting is enabled
+    #[serde(default = "default_rate_limit_enabled")]
+    pub enabled: bool,
 }
 
 /// Performance tuning configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerformanceConfig {
-    /// Number of worker threads for async runtime
+    /// Number of worker threads
     #[serde(default = "default_worker_threads")]
-    pub worker_threads: usize,
+    pub worker_threads: u32,
     
-    /// Maximum concurrent requests
-    #[serde(default = "default_max_concurrent_requests")]
-    pub max_concurrent_requests: usize,
+    /// Transaction batch size
+    #[serde(default = "default_batch_size")]
+    pub batch_size: u32,
     
-    /// Connection pool size per RPC endpoint
-    #[serde(default = "default_connection_pool_size")]
-    pub connection_pool_size: usize,
+    /// Simulation cache size
+    #[serde(default = "default_cache_size")]
+    pub simulation_cache_size: u32,
     
-    /// Keep-alive timeout for HTTP connections
-    #[serde(default = "default_keep_alive_timeout")]
-    pub keep_alive_timeout_seconds: u64,
+    /// Cache TTL in seconds
+    #[serde(default = "default_cache_ttl")]
+    pub cache_ttl_seconds: u64,
+    
+    /// Whether to enable metrics collection
+    #[serde(default = "default_metrics_enabled")]
+    pub metrics_enabled: bool,
 }
 
-fn default_worker_threads() -> usize {
-    num_cpus::get()
-}
-
-fn default_max_concurrent_requests() -> usize {
-    1000
-}
-
-fn default_connection_pool_size() -> usize {
-    10
-}
-
-fn default_keep_alive_timeout() -> u64 {
-    30
-}
+// Default value functions
+fn default_commitment() -> String { "confirmed".to_string() }
+fn default_rpc_timeout() -> u64 { 30 }
+fn default_max_retries() -> u32 { 3 }
+fn default_pool_size() -> u32 { 10 }
+fn default_max_compute_units() -> u32 { 1_400_000 }
+fn default_max_fee_lamports() -> u64 { 100_000 }
+fn default_validate_instructions() -> bool { true }
+fn default_max_bundle_size() -> u32 { 5 }
+fn default_parallel_signing() -> bool { true }
+fn default_log_level() -> String { "info".to_string() }
+fn default_log_format() -> String { "pretty".to_string() }
+fn default_include_timestamps() -> bool { true }
+fn default_bind_address() -> String { "127.0.0.1".to_string() }
+fn default_port() -> u16 { 8080 }
+fn default_request_timeout() -> u64 { 30 }
+fn default_max_body_size() -> u64 { 1024 * 1024 } // 1MB
+fn default_allowed_origins() -> Vec<String> { vec!["*".to_string()] }
+fn default_allowed_methods() -> Vec<String> { vec!["GET".to_string(), "POST".to_string()] }
+fn default_allowed_headers() -> Vec<String> { vec!["Content-Type".to_string(), "Authorization".to_string()] }
+fn default_requests_per_minute() -> u32 { 60 }
+fn default_burst_size() -> u32 { 10 }
+fn default_rate_limit_enabled() -> bool { true }
+fn default_worker_threads() -> u32 { num_cpus::get() as u32 }
+fn default_batch_size() -> u32 { 10 }
+fn default_cache_size() -> u32 { 1000 }
+fn default_cache_ttl() -> u64 { 300 } // 5 minutes
+fn default_metrics_enabled() -> bool { true }
 
 impl Default for BundlerConfig {
     fn default() -> Self {
@@ -278,107 +249,109 @@ impl Default for BundlerConfig {
                 commitment: default_commitment(),
                 timeout_seconds: default_rpc_timeout(),
                 max_retries: default_max_retries(),
-                backoff_base_ms: default_backoff_ms(),
-                backoff_max_ms: default_max_backoff_ms(),
+                pool_size: default_pool_size(),
             },
             fees: FeeStrategy::default(),
             security: SecurityConfig {
+                max_compute_units: default_max_compute_units(),
+                max_fee_lamports: default_max_fee_lamports(),
                 program_whitelist: vec![
-                    // System Program
-                    "11111111111111111111111111111111".parse().unwrap(),
-                    // Compute Budget Program  
-                    "ComputeBudget111111111111111111111111111111".parse().unwrap(),
+                    system_program(),
                 ],
-                account_whitelist: None,
-                max_writable_accounts: default_max_writable_accounts(),
-                require_simulation: default_require_simulation(),
-                api_key: None,
-                rate_limit: RateLimitConfig {
-                    requests_per_minute: default_requests_per_minute(),
-                    burst_size: default_burst_size(),
-                },
+                validate_instructions: default_validate_instructions(),
+                max_bundle_size: default_max_bundle_size(),
             },
             signing: SigningConfig {
                 fee_payer: SignerConfig {
                     signer_type: bundler_types::SignerType::Env {
-                        var_name: "BUNDLER_KEYPAIR".to_string(),
+                        var_name: "SOLANA_PRIVATE_KEY".to_string(),
                     },
                     alias: Some("fee_payer".to_string()),
                 },
-                additional_signers: HashMap::new(),
-                timeout_seconds: default_signing_timeout(),
+                additional_signers: vec![],
+                parallel_signing: default_parallel_signing(),
             },
             jito: None,
             logging: LoggingConfig {
                 level: default_log_level(),
                 format: default_log_format(),
-                file: None,
-                enable_tracing: default_enable_tracing(),
+                file_enabled: false,
+                file_path: None,
+                include_timestamps: default_include_timestamps(),
             },
             service: ServiceConfig {
                 bind_address: default_bind_address(),
                 port: default_port(),
-                enable_cors: default_enable_cors(),
-                timeout_seconds: default_service_timeout(),
-                max_body_size: default_max_body_size(),
+                request_timeout_seconds: default_request_timeout(),
+                max_body_size_bytes: default_max_body_size(),
+                cors: CorsConfig {
+                    allowed_origins: default_allowed_origins(),
+                    allowed_methods: default_allowed_methods(),
+                    allowed_headers: default_allowed_headers(),
+                    allow_credentials: false,
+                },
+                rate_limit: RateLimitConfig {
+                    requests_per_minute: default_requests_per_minute(),
+                    burst_size: default_burst_size(),
+                    enabled: default_rate_limit_enabled(),
+                },
             },
             performance: PerformanceConfig {
                 worker_threads: default_worker_threads(),
-                max_concurrent_requests: default_max_concurrent_requests(),
-                connection_pool_size: default_connection_pool_size(),
-                keep_alive_timeout_seconds: default_keep_alive_timeout(),
+                batch_size: default_batch_size(),
+                simulation_cache_size: default_cache_size(),
+                cache_ttl_seconds: default_cache_ttl(),
+                metrics_enabled: default_metrics_enabled(),
             },
         }
     }
 }
 
 impl BundlerConfig {
-    /// Load configuration from file and environment variables
-    pub fn load() -> BundlerResult<Self> {
-        Self::load_from_path("bundler.config.toml")
+    /// Load configuration from file
+    pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let config_str = std::fs::read_to_string(path.as_ref())
+            .with_context(|| format!("Failed to read config file: {:?}", path.as_ref()))?;
+        
+        let config: BundlerConfig = toml::from_str(&config_str)
+            .with_context(|| "Failed to parse config file")?;
+        
+        config.validate()?;
+        Ok(config)
     }
     
-    /// Load configuration from a specific file path
-    pub fn load_from_path<P: AsRef<Path>>(path: P) -> BundlerResult<Self> {
-        let mut config_builder = Config::builder()
-            .add_source(Config::try_from(&BundlerConfig::default()).unwrap());
-        
-        // Try to load from config file if it exists
-        let config_path = path.as_ref();
-        if config_path.exists() {
-            info!("Loading configuration from {}", config_path.display());
-            config_builder = config_builder.add_source(File::from(config_path));
-        } else {
-            warn!("Configuration file {} not found, using defaults", config_path.display());
-        }
-        
-        // Override with environment variables
-        config_builder = config_builder.add_source(
-            Environment::with_prefix("BUNDLER")
-                .separator("_")
-                .try_parsing(true)
-        );
-        
-        let config = config_builder
+    /// Load configuration from environment and files
+    pub fn load() -> Result<Self> {
+        let mut config = Config::builder()
+            .add_source(File::with_name("bundler.config").required(false))
+            .add_source(File::with_name("/etc/bundler/config").required(false))
+            .add_source(Environment::with_prefix("BUNDLER").separator("_"))
             .build()
-            .map_err(|e| BundlerError::Config(format!("Failed to build configuration: {}", e)))?;
+            .context("Failed to build configuration")?;
         
-        let bundler_config: BundlerConfig = config
-            .try_deserialize()
-            .map_err(|e| BundlerError::Config(format!("Failed to deserialize configuration: {}", e)))?;
+        let bundler_config: BundlerConfig = config.try_deserialize()
+            .context("Failed to deserialize configuration")?;
         
-        // Validate configuration
         bundler_config.validate()?;
-        
-        debug!("Configuration loaded successfully");
         Ok(bundler_config)
     }
     
-    /// Validate the configuration
+    /// Save configuration to file
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let config_str = toml::to_string_pretty(self)
+            .context("Failed to serialize configuration")?;
+        
+        std::fs::write(path.as_ref(), config_str)
+            .with_context(|| format!("Failed to write config file: {:?}", path.as_ref()))?;
+        
+        Ok(())
+    }
+    
+    /// Validate configuration
     pub fn validate(&self) -> BundlerResult<()> {
         // Validate RPC endpoints
         if self.rpc.endpoints.is_empty() {
-            return Err(BundlerError::Config("At least one RPC endpoint must be configured".to_string()));
+            return Err(BundlerError::Config("At least one RPC endpoint is required".to_string()));
         }
         
         for endpoint in &self.rpc.endpoints {
@@ -390,33 +363,26 @@ impl BundlerConfig {
             }
         }
         
-        // Validate commitment level
-        match self.rpc.commitment.as_str() {
-            "processed" | "confirmed" | "finalized" => {},
-            _ => return Err(BundlerError::Config(
-                format!("Invalid commitment level: {}", self.rpc.commitment)
-            )),
+        // Validate security settings
+        if self.security.max_compute_units == 0 {
+            return Err(BundlerError::Config("Max compute units must be greater than 0".to_string()));
         }
         
-        // Validate program whitelist
-        if self.security.program_whitelist.is_empty() {
-            return Err(BundlerError::Config("Program whitelist cannot be empty".to_string()));
+        if self.security.max_fee_lamports == 0 {
+            return Err(BundlerError::Config("Max fee lamports must be greater than 0".to_string()));
         }
         
-        // Validate log level
-        match self.logging.level.as_str() {
-            "trace" | "debug" | "info" | "warn" | "error" => {},
-            _ => return Err(BundlerError::Config(
-                format!("Invalid log level: {}", self.logging.level)
-            )),
+        if self.security.max_bundle_size == 0 {
+            return Err(BundlerError::Config("Max bundle size must be greater than 0".to_string()));
         }
         
-        // Validate log format
-        match self.logging.format.as_str() {
-            "json" | "pretty" => {},
-            _ => return Err(BundlerError::Config(
-                format!("Invalid log format: {}", self.logging.format)
-            )),
+        // Validate service settings
+        if self.service.port == 0 {
+            return Err(BundlerError::Config("Service port must be greater than 0".to_string()));
+        }
+        
+        if self.service.request_timeout_seconds == 0 {
+            return Err(BundlerError::Config("Request timeout must be greater than 0".to_string()));
         }
         
         // Validate performance settings
@@ -424,69 +390,50 @@ impl BundlerConfig {
             return Err(BundlerError::Config("Worker threads must be greater than 0".to_string()));
         }
         
-        if self.performance.max_concurrent_requests == 0 {
-            return Err(BundlerError::Config("Max concurrent requests must be greater than 0".to_string()));
+        if self.performance.batch_size == 0 {
+            return Err(BundlerError::Config("Batch size must be greater than 0".to_string()));
         }
         
         Ok(())
     }
     
-    /// Save configuration to file
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let toml_string = toml::to_string_pretty(self)
-            .context("Failed to serialize configuration to TOML")?;
-        
-        std::fs::write(path, toml_string)
-            .context("Failed to write configuration file")?;
-        
-        Ok(())
-    }
-    
-    /// Get the primary RPC endpoint
+    /// Get primary RPC endpoint
     pub fn primary_rpc_endpoint(&self) -> &RpcEndpoint {
         self.rpc.endpoints
             .iter()
             .max_by_key(|endpoint| endpoint.weight)
-            .expect("At least one RPC endpoint must be configured")
+            .unwrap_or(&self.rpc.endpoints[0])
     }
     
     /// Get RPC endpoints sorted by weight (descending)
     pub fn rpc_endpoints_by_weight(&self) -> Vec<&RpcEndpoint> {
-        let mut endpoints = self.rpc.endpoints.iter().collect::<Vec<_>>();
+        let mut endpoints: Vec<&RpcEndpoint> = self.rpc.endpoints.iter().collect();
         endpoints.sort_by(|a, b| b.weight.cmp(&a.weight));
         endpoints
     }
     
-    /// Check if a program ID is whitelisted
+    /// Check if a program is whitelisted
     pub fn is_program_whitelisted(&self, program_id: &Pubkey) -> bool {
+        if self.security.program_whitelist.is_empty() {
+            return true; // Empty whitelist means allow all
+        }
         self.security.program_whitelist.contains(program_id)
     }
     
-    /// Check if an account is whitelisted (if whitelist is enabled)
-    pub fn is_account_whitelisted(&self, account: &Pubkey) -> bool {
-        match &self.security.account_whitelist {
-            Some(whitelist) => whitelist.contains(account),
-            None => true, // No whitelist means all accounts are allowed
+    /// Get effective log level
+    pub fn effective_log_level(&self) -> tracing::Level {
+        match self.logging.level.to_lowercase().as_str() {
+            "trace" => tracing::Level::TRACE,
+            "debug" => tracing::Level::DEBUG,
+            "info" => tracing::Level::INFO,
+            "warn" => tracing::Level::WARN,
+            "error" => tracing::Level::ERROR,
+            _ => tracing::Level::INFO,
         }
     }
 }
 
-impl SecurityConfig {
-    /// Check if a program ID is whitelisted
-    pub fn is_program_whitelisted(&self, program_id: &Pubkey) -> bool {
-        self.program_whitelist.contains(program_id)
-    }
-    
-    /// Check if an account is whitelisted (if whitelist is enabled)
-    pub fn is_account_whitelisted(&self, account: &Pubkey) -> bool {
-        match &self.account_whitelist {
-            Some(whitelist) => whitelist.contains(account),
-            None => true, // No whitelist means all accounts are allowed
-        }
-    }
-}
-
-/// Configuration builder for easier programmatic configuration
+/// Configuration builder for programmatic construction
 pub struct BundlerConfigBuilder {
     config: BundlerConfig,
 }
@@ -523,7 +470,17 @@ impl BundlerConfigBuilder {
         self
     }
     
-    pub fn build(self) -> BundlerResult<BundlerConfig> {
+    pub fn with_port(mut self, port: u16) -> Self {
+        self.config.service.port = port;
+        self
+    }
+    
+    pub fn with_worker_threads(mut self, threads: u32) -> Self {
+        self.config.performance.worker_threads = threads;
+        self
+    }
+    
+    pub fn build(self) -> Result<BundlerConfig> {
         self.config.validate()?;
         Ok(self.config)
     }
@@ -535,20 +492,9 @@ impl Default for BundlerConfigBuilder {
     }
 }
 
-// Add num_cpus dependency to Cargo.toml for the default worker threads calculation
-extern crate num_cpus;
-
-// Re-export commonly used program IDs
-pub mod program_ids {
-    use solana_sdk::pubkey::Pubkey;
-    
-    pub fn system_program() -> Pubkey {
-        "11111111111111111111111111111111".parse().unwrap()
-    }
-    
-    pub fn compute_budget() -> Pubkey {
-        "ComputeBudget111111111111111111111111111111".parse().unwrap()
-    }
+/// Helper function to get system program ID
+pub fn system_program() -> Pubkey {
+    solana_system_program::id()
 }
 
 #[cfg(test)]
@@ -604,10 +550,193 @@ mod tests {
         let config = BundlerConfig::default();
         
         // System program should be whitelisted by default
-        assert!(config.is_program_whitelisted(&solana_sdk::system_program::id()));
+        assert!(config.is_program_whitelisted(&system_program()));
         
         // Random program should not be whitelisted
         let random_program = Pubkey::new_unique();
         assert!(!config.is_program_whitelisted(&random_program));
+    }
+    
+    #[test]
+    fn test_rpc_endpoint_selection() {
+        let mut config = BundlerConfig::default();
+        config.rpc.endpoints = vec![
+            RpcEndpoint {
+                url: "https://low-weight.com".to_string(),
+                weight: 10,
+                supports_jito: false,
+                auth_token: None,
+            },
+            RpcEndpoint {
+                url: "https://high-weight.com".to_string(),
+                weight: 100,
+                supports_jito: true,
+                auth_token: Some("token".to_string()),
+            },
+        ];
+        
+        let primary = config.primary_rpc_endpoint();
+        assert_eq!(primary.url, "https://high-weight.com");
+        assert_eq!(primary.weight, 100);
+        
+        let sorted = config.rpc_endpoints_by_weight();
+        assert_eq!(sorted[0].weight, 100);
+        assert_eq!(sorted[1].weight, 10);
+    }
+    
+    #[test]
+    fn test_config_validation_errors() {
+        let mut config = BundlerConfig::default();
+        
+        // Test empty RPC endpoints
+        config.rpc.endpoints.clear();
+        assert!(config.validate().is_err());
+        
+        // Reset and test zero compute units
+        config = BundlerConfig::default();
+        config.security.max_compute_units = 0;
+        assert!(config.validate().is_err());
+        
+        // Reset and test zero port
+        config = BundlerConfig::default();
+        config.service.port = 0;
+        assert!(config.validate().is_err());
+    }
+    
+    #[test]
+    fn test_log_level_parsing() {
+        let mut config = BundlerConfig::default();
+        
+        config.logging.level = "trace".to_string();
+        assert_eq!(config.effective_log_level(), tracing::Level::TRACE);
+        
+        config.logging.level = "debug".to_string();
+        assert_eq!(config.effective_log_level(), tracing::Level::DEBUG);
+        
+        config.logging.level = "info".to_string();
+        assert_eq!(config.effective_log_level(), tracing::Level::INFO);
+        
+        config.logging.level = "warn".to_string();
+        assert_eq!(config.effective_log_level(), tracing::Level::WARN);
+        
+        config.logging.level = "error".to_string();
+        assert_eq!(config.effective_log_level(), tracing::Level::ERROR);
+        
+        config.logging.level = "invalid".to_string();
+        assert_eq!(config.effective_log_level(), tracing::Level::INFO);
+    }
+    
+    #[test]
+    fn test_cors_config() {
+        let config = BundlerConfig::default();
+        
+        assert_eq!(config.service.cors.allowed_origins, vec!["*"]);
+        assert_eq!(config.service.cors.allowed_methods, vec!["GET", "POST"]);
+        assert!(!config.service.cors.allow_credentials);
+    }
+    
+    #[test]
+    fn test_rate_limit_config() {
+        let config = BundlerConfig::default();
+        
+        assert_eq!(config.service.rate_limit.requests_per_minute, 60);
+        assert_eq!(config.service.rate_limit.burst_size, 10);
+        assert!(config.service.rate_limit.enabled);
+    }
+    
+    #[test]
+    fn test_performance_config() {
+        let config = BundlerConfig::default();
+        
+        assert!(config.performance.worker_threads > 0);
+        assert_eq!(config.performance.batch_size, 10);
+        assert_eq!(config.performance.simulation_cache_size, 1000);
+        assert_eq!(config.performance.cache_ttl_seconds, 300);
+        assert!(config.performance.metrics_enabled);
+    }
+    
+    #[test]
+    fn test_jito_config_integration() {
+        let jito_config = JitoConfig {
+            block_engine_url: "https://mainnet.block-engine.jito.wtf".to_string(),
+            relayer_url: "https://mainnet.relayer.jito.wtf".to_string(),
+            auth_keypair_path: Some("/path/to/keypair.json".to_string()),
+            tip_lamports: 10000,
+            max_tip_lamports: 100000,
+            enabled: true,
+        };
+        
+        let config = BundlerConfigBuilder::new()
+            .with_jito_config(jito_config.clone())
+            .build()
+            .unwrap();
+        
+        assert!(config.jito.is_some());
+        let jito = config.jito.unwrap();
+        assert_eq!(jito.block_engine_url, jito_config.block_engine_url);
+        assert_eq!(jito.tip_lamports, jito_config.tip_lamports);
+        assert!(jito.enabled);
+    }
+    
+    #[test]
+    fn test_security_config_validation() {
+        let mut config = BundlerConfig::default();
+        
+        // Test max bundle size validation
+        config.security.max_bundle_size = 0;
+        assert!(config.validate().is_err());
+        
+        // Test max fee validation
+        config = BundlerConfig::default();
+        config.security.max_fee_lamports = 0;
+        assert!(config.validate().is_err());
+    }
+    
+    #[test]
+    fn test_empty_program_whitelist() {
+        let mut config = BundlerConfig::default();
+        config.security.program_whitelist.clear();
+        
+        // Empty whitelist should allow all programs
+        let random_program = Pubkey::new_unique();
+        assert!(config.is_program_whitelisted(&random_program));
+    }
+    
+    #[test]
+    fn test_builder_pattern() {
+        let config = BundlerConfigBuilder::new()
+            .with_rpc_endpoint("https://api.devnet.solana.com".to_string(), 50)
+            .with_rpc_endpoint("https://api.testnet.solana.com".to_string(), 30)
+            .with_log_level("trace".to_string())
+            .with_port(9090)
+            .with_worker_threads(8)
+            .build()
+            .unwrap();
+        
+        assert_eq!(config.rpc.endpoints.len(), 3); // 2 added + 1 default
+        assert_eq!(config.logging.level, "trace");
+        assert_eq!(config.service.port, 9090);
+        assert_eq!(config.performance.worker_threads, 8);
+    }
+    
+    #[test]
+    fn test_config_defaults() {
+        let config = BundlerConfig::default();
+        
+        // Test RPC defaults
+        assert_eq!(config.rpc.commitment, "confirmed");
+        assert_eq!(config.rpc.timeout_seconds, 30);
+        assert_eq!(config.rpc.max_retries, 3);
+        
+        // Test service defaults
+        assert_eq!(config.service.bind_address, "127.0.0.1");
+        assert_eq!(config.service.port, 8080);
+        assert_eq!(config.service.request_timeout_seconds, 30);
+        
+        // Test logging defaults
+        assert_eq!(config.logging.level, "info");
+        assert_eq!(config.logging.format, "pretty");
+        assert!(config.logging.include_timestamps);
+        assert!(!config.logging.file_enabled);
     }
 }
