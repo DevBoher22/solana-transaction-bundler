@@ -10,8 +10,8 @@ use solana_client::{
     rpc_config::{RpcSendTransactionConfig, RpcSimulateTransactionConfig},
     rpc_response::RpcSimulateTransactionResult,
 };
+use solana_commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::{
-    commitment_config::{CommitmentConfig, CommitmentLevel},
     hash::Hash,
     pubkey::Pubkey,
     signature::Signature,

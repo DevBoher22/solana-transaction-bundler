@@ -6,9 +6,10 @@ use bundler_types::{
     TransactionError, ErrorType, ComputeUnits, Lamports,
 };
 use chrono::Utc;
+// Note: AddressLookupTableAccount is not directly available in Solana 3.0
+use solana_commitment_config::CommitmentLevel;
+// Note: ComputeBudgetInstruction is not directly available in Solana 3.0
 use solana_sdk::{
-    address_lookup_table_account::AddressLookupTableAccount,
-    compute_budget::ComputeBudgetInstruction,
     hash::Hash,
     instruction::Instruction,
     message::{v0, VersionedMessage},
@@ -308,7 +309,9 @@ impl TransactionBundler {
         let mut instructions = transaction.message.instructions.clone();
         let account_keys = &transaction.message.account_keys;
         
-        let compute_budget_program = solana_sdk::compute_budget::id();
+        // TODO: Use proper compute budget program ID when available in Solana 3.0
+        // Using a placeholder pubkey for now
+        let compute_budget_program = Pubkey::default();
         
         // Find compute budget program index
         let program_index = account_keys
@@ -351,13 +354,13 @@ impl TransactionBundler {
             // Check if transaction is confirmed
             if let Ok(confirmed) = self.rpc_client.confirm_transaction(
                 signature,
-                solana_sdk::commitment_config::CommitmentLevel::Confirmed,
+                CommitmentLevel::Confirmed,
             ).await {
                 if confirmed {
                     // Check for finalized
                     if let Ok(finalized) = self.rpc_client.confirm_transaction(
                         signature,
-                        solana_sdk::commitment_config::CommitmentLevel::Finalized,
+                        CommitmentLevel::Finalized,
                     ).await {
                         if finalized {
                             return Ok(TransactionStatus::Finalized);

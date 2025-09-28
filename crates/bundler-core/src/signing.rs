@@ -59,9 +59,10 @@ impl FileKeyProvider {
             .map_err(|e| BundlerError::Signing(format!("Failed to read keypair file {}: {}", path, e)))?;
         
         let keypair = if keypair_bytes.len() == 64 {
-            // Raw 64-byte keypair
-            Keypair::from_bytes(&keypair_bytes)
-                .map_err(|e| BundlerError::Signing(format!("Invalid keypair format: {}", e)))?
+            // Raw 64-byte keypair - take first 32 bytes as secret key
+            let mut array = [0u8; 32];
+            array.copy_from_slice(&keypair_bytes[..32]);
+            Keypair::new_from_array(array)
         } else {
             // Try to parse as JSON array
             let json_bytes: Vec<u8> = serde_json::from_slice(&keypair_bytes)
@@ -71,8 +72,9 @@ impl FileKeyProvider {
                 return Err(BundlerError::Signing("Keypair must be 64 bytes".to_string()));
             }
             
-            Keypair::from_bytes(&json_bytes)
-                .map_err(|e| BundlerError::Signing(format!("Invalid keypair bytes: {}", e)))?
+            let mut array = [0u8; 32];
+            array.copy_from_slice(&json_bytes[..32]);
+            Keypair::new_from_array(array)
         };
         
         Ok(Self { keypair })
@@ -106,8 +108,9 @@ impl EnvKeyProvider {
         // Try to decode as base58 first (Solana CLI format)
         let keypair = if let Ok(bytes) = bs58::decode(&key_str).into_vec() {
             if bytes.len() == 64 {
-                Keypair::from_bytes(&bytes)
-                    .map_err(|e| BundlerError::Signing(format!("Invalid base58 keypair: {}", e)))?
+                let mut array = [0u8; 32];
+                array.copy_from_slice(&bytes[..32]);
+                Keypair::new_from_array(array)
             } else {
                 return Err(BundlerError::Signing("Base58 keypair must decode to 64 bytes".to_string()));
             }
@@ -120,8 +123,9 @@ impl EnvKeyProvider {
                 return Err(BundlerError::Signing("JSON keypair must be 64 bytes".to_string()));
             }
             
-            Keypair::from_bytes(&json_bytes)
-                .map_err(|e| BundlerError::Signing(format!("Invalid keypair bytes: {}", e)))?
+            let mut array = [0u8; 32];
+            array.copy_from_slice(&json_bytes[..32]);
+            Keypair::new_from_array(array)
         };
         
         Ok(Self { keypair })

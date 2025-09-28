@@ -83,7 +83,7 @@ impl TransactionSimulator {
                     solana_sdk::instruction::AccountMeta {
                         pubkey: transaction.message.account_keys[account_index as usize],
                         is_signer: transaction.message.is_signer(account_index as usize),
-                        is_writable: transaction.message.is_writable(account_index as usize),
+                        is_writable: transaction.message.is_maybe_writable(account_index as usize, None),
                     }
                 }).collect(),
                 data: ix.data.clone(),

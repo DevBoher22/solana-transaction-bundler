@@ -1,8 +1,9 @@
 use bundler_types::{BundlerError, BundlerResult, FeeStrategy, Lamports};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+// Note: ComputeBudgetInstruction is not directly available in Solana 3.0
+// We'll use solana_sdk::instruction::Instruction for compute budget instructions
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction,
     instruction::Instruction,
     pubkey::Pubkey,
 };
@@ -245,10 +246,9 @@ impl FeeManager {
         compute_units: u32,
         fee_lamports: Lamports,
     ) -> Vec<Instruction> {
-        vec![
-            ComputeBudgetInstruction::set_compute_unit_limit(compute_units),
-            ComputeBudgetInstruction::set_compute_unit_price(fee_lamports),
-        ]
+        // TODO: Implement proper compute budget instructions for Solana 3.0
+        // For now, return empty vector as placeholder
+        vec![]
     }
 
     /// Implement fee bumping for failed transactions

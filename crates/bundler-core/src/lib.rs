@@ -154,7 +154,7 @@ impl BundlerService {
     }
     
     /// Confirm transaction
-    pub async fn confirm_transaction(&self, signature: &solana_sdk::signature::Signature, commitment: solana_sdk::commitment_config::CommitmentLevel) -> BundlerResult<bool> {
+    pub async fn confirm_transaction(&self, signature: &solana_sdk::signature::Signature, commitment: solana_commitment_config::CommitmentLevel) -> BundlerResult<bool> {
         self.rpc_client.confirm_transaction(signature, commitment).await
     }
     
