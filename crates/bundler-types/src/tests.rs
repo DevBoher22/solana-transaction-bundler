@@ -17,21 +17,22 @@ mod tests {
             request_id: Uuid::new_v4(),
             atomic: true,
             compute: ComputeConfig {
-                units: 200000,
-                unit_price: 1000,
+                limit: ComputeLimit::Fixed(200000),
+                price: ComputePrice::Fixed(1000),
+                max_price_lamports: 50000,
             },
             alt_tables: vec![],
             instructions: vec![
                 InstructionData {
                     program_id: solana_sdk::system_program::id(),
-                    accounts: vec![
+                    keys: vec![
                         AccountMeta {
                             pubkey: Pubkey::new_unique(),
                             is_signer: true,
                             is_writable: true,
                         }
                     ],
-                    data: vec![1, 2, 3, 4],
+                    data_b64: base64::engine::general_purpose::STANDARD.encode(&[1, 2, 3, 4]),
                 }
             ],
             signers: vec![],
@@ -121,44 +122,37 @@ mod tests {
     fn test_instruction_data() {
         let instruction = InstructionData {
             program_id: solana_sdk::system_program::id(),
-            accounts: vec![
+            keys: vec![
                 AccountMeta {
                     pubkey: Pubkey::new_unique(),
                     is_signer: true,
                     is_writable: false,
                 }
             ],
-            data: vec![0, 1, 2, 3, 4, 5],
+            data_b64: base64::engine::general_purpose::STANDARD.encode(&[1, 2, 3, 4]),
         };
 
-        // Test that we can convert to Solana Instruction
-        let solana_instruction = Instruction {
-            program_id: instruction.program_id,
-            accounts: instruction.accounts.iter().map(|meta| solana_sdk::instruction::AccountMeta {
-                pubkey: meta.pubkey,
-                is_signer: meta.is_signer,
-                is_writable: meta.is_writable,
-            }).collect(),
-            data: instruction.data.clone(),
-        };
-
+        let solana_instruction: Instruction = instruction.clone().into();
         assert_eq!(instruction.program_id, solana_instruction.program_id);
-        assert_eq!(instruction.data, solana_instruction.data);
+        assert_eq!(base64::engine::general_purpose::STANDARD.decode(&instruction.data_b64).unwrap(), solana_instruction.data);
     }
 
     #[test]
     fn test_compute_config() {
         let config = ComputeConfig {
-            units: 400000,
-            unit_price: 2000,
+            limit: ComputeLimit::Fixed(400000),
+            price: ComputePrice::Fixed(2000),
+            max_price_lamports: 80000,
         };
 
         // Test serialization
         let json = serde_json::to_string(&config).expect("Should serialize");
-        let deserialized: ComputeConfig = serde_json::from_str(&json).expect("Should deserialize");
         
-        assert_eq!(config.units, deserialized.units);
-        assert_eq!(config.unit_price, deserialized.unit_price);
+        // Test deserialization
+        let deserialized: ComputeConfig = serde_json::from_str(&json).expect("Should deserialize");
+        assert_eq!(config.limit, deserialized.limit);
+        assert_eq!(config.price, deserialized.price);
+        assert_eq!(config.max_price_lamports, deserialized.max_price_lamports);
     }
 
     #[test]
@@ -166,8 +160,13 @@ mod tests {
         let strategy = FeeStrategy {
             base_fee_lamports: 5000,
             priority_fee_lamports: 1000,
-            compute_unit_price_micro_lamports: 1500,
-            max_price_lamports: 100000,
+            compute_unit_price_micro_lamports: 1000,
+            max_price_lamports: 50000,
+            base_percentile: 75,
+            buffer_percent: 20,
+            adaptive: true,
+            enable_bump: true,
+            max_bump_attempts: 3,
         };
 
         // Test that max_price is enforced
@@ -201,23 +200,19 @@ mod tests {
 
     #[test]
     fn test_health_status() {
-        let mut components = HashMap::new();
-        components.insert("rpc".to_string(), ComponentHealth {
-            healthy: true,
-            message: "OK".to_string(),
-            last_success: Some(chrono::Utc::now()),
-            error_count: 0,
-        });
-
         let health = HealthStatus {
             healthy: true,
-            message: "All systems operational".to_string(),
-            last_check: chrono::Utc::now(),
-            components,
+            components: HashMap::from([
+                ("rpc".to_string(), ComponentHealth {
+                    healthy: true,
+                    message: Some("Connected".to_string()),
+                    last_success: Some(chrono::Utc::now()),
+                })
+            ]),
+            timestamp: chrono::Utc::now(),
         };
 
         assert!(health.healthy);
-        assert!(!health.message.is_empty());
         assert!(health.components.contains_key("rpc"));
     }
 
@@ -225,13 +220,12 @@ mod tests {
     fn test_component_health() {
         let component = ComponentHealth {
             healthy: false,
-            message: "Connection timeout".to_string(),
-            last_success: Some(chrono::Utc::now()),
-            error_count: 3,
+            message: Some("Connection timeout".to_string()),
+            last_success: Some(chrono::Utc::now() - chrono::Duration::hours(1)),
         };
 
         assert!(!component.healthy);
-        assert_eq!(component.error_count, 3);
+        assert!(component.message.is_some());
         assert!(component.last_success.is_some());
     }
 
@@ -255,15 +249,14 @@ mod tests {
     #[test]
     fn test_signer_config() {
         let signer = SignerConfig {
-            signer_type: SignerType::File,
-            path: Some("/path/to/keypair.json".to_string()),
-            env_var: None,
-            kms_key_id: None,
+            signer_type: SignerType::File { 
+                path: "/path/to/keypair.json".to_string() 
+            },
+            alias: Some("main".to_string()),
         };
 
-        assert!(matches!(signer.signer_type, SignerType::File));
-        assert!(signer.path.is_some());
-        assert!(signer.env_var.is_none());
+        assert!(matches!(signer.signer_type, SignerType::File { .. }));
+        assert!(signer.alias.is_some());
     }
 
     #[test]
@@ -273,8 +266,9 @@ mod tests {
             request_id: Uuid::new_v4(),
             atomic: false,
             compute: ComputeConfig {
-                units: 200000,
-                unit_price: 1000,
+                limit: ComputeLimit::Fixed(200000),
+                price: ComputePrice::Fixed(1000),
+                max_price_lamports: 50000,
             },
             alt_tables: vec![],
             instructions: vec![],
@@ -321,18 +315,19 @@ mod integration_tests {
             request_id: Uuid::new_v4(),
             atomic: true,
             compute: ComputeConfig {
-                units: 400000,
-                unit_price: 2000,
+                limit: ComputeLimit::Fixed(400000),
+                price: ComputePrice::Fixed(2000),
+                max_price_lamports: 80000,
             },
             alt_tables: vec![],
             instructions: vec![
                 InstructionData {
                     program_id: solana_sdk::system_program::id(),
-                    accounts: vec![
+                    keys: vec![
                         AccountMeta {
                             pubkey: Pubkey::new_unique(),
                             is_signer: true,
-                            is_writable: true,
+                            is_writable: false,
                         },
                         AccountMeta {
                             pubkey: Pubkey::new_unique(),
@@ -340,7 +335,7 @@ mod integration_tests {
                             is_writable: true,
                         },
                     ],
-                    data: vec![2, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0], // Transfer instruction
+                    data_b64: base64::engine::general_purpose::STANDARD.encode(&[2, 0, 0, 0, 100, 0, 0, 0, 0, 0, 0, 0]), // Transfer instruction
                 }
             ],
             signers: vec![],

@@ -70,7 +70,7 @@ fn default_max_price() -> Lamports {
 }
 
 /// Compute unit limit specification
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum ComputeLimit {
     Auto,
@@ -78,7 +78,7 @@ pub enum ComputeLimit {
 }
 
 /// Compute unit price specification
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum ComputePrice {
     Auto,
@@ -446,6 +446,12 @@ pub enum BundlerError {
     
     #[error("Invalid input: {0}")]
     InvalidInput(String),
+    
+    #[error("Invalid instruction: {0}")]
+    InvalidInstruction(String),
+    
+    #[error("RPC error: {0}")]
+    RpcError(String),
     
     #[error("Internal error: {0}")]
     Internal(String),
