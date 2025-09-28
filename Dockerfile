@@ -19,7 +19,7 @@ COPY crates/ ./crates/
 COPY Cargo.loc[k] ./
 
 # Build dependencies (this layer will be cached)
-RUN cargo build --release --bin bundler-cli --bin bundler-service
+RUN cargo build --release --bin bundler --bin bundler-service
 
 # Production stage
 FROM debian:bookworm-slim
