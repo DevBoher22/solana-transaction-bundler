@@ -1,0 +1,86 @@
+# Solana Transaction Bundler Configuration
+
+[rpc]
+# RPC endpoints with weights (higher weight = more likely to be used)
+endpoints = [
+    { url = "https://api.mainnet-beta.solana.com", weight = 100 },
+    { url = "https://solana-api.projectserum.com", weight = 80 },
+    { url = "https://rpc.ankr.com/solana", weight = 60 }
+]
+
+# Connection settings
+timeout_seconds = 30
+max_retries = 3
+retry_delay_ms = 1000
+
+[fees]
+# Fee calculation strategy
+strategy = "p75_plus_buffer"  # Options: "p75_plus_buffer", "fixed", "dynamic"
+
+# Base fee settings
+base_fee_lamports = 5000
+priority_fee_lamports = 1000
+
+# Dynamic fee parameters
+max_fee_lamports = 50000
+fee_bump_multiplier = 1.5
+trend_window_size = 20
+
+[security]
+# Program whitelist (only these programs are allowed)
+program_whitelist = [
+    "11111111111111111111111111111112",  # System Program
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",  # Token Program
+    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",  # Associated Token Program
+    "9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin",  # Serum DEX v3
+]
+
+# Optional account whitelist (if set, only these accounts can be used)
+# account_whitelist = []
+
+# Security limits
+max_writable_accounts = 64
+require_simulation = true
+
+[signing]
+# Fee payer configuration
+fee_payer = { type = "env", var_name = "SOLANA_PRIVATE_KEY" }
+
+# Additional signers (optional)
+# additional_signers = [
+#     { alias = "trader", type = "file", path = "/path/to/keypair.json" },
+#     { alias = "authority", type = "kms", key_id = "arn:aws:kms:...", region = "us-east-1" }
+# ]
+
+# Signing timeout
+timeout_seconds = 10
+
+[service]
+# HTTP service configuration
+port = 8080
+host = "0.0.0.0"
+
+# Request limits
+max_request_size_mb = 10
+rate_limit_per_minute = 1000
+
+# CORS settings
+cors_origins = ["*"]
+
+[jito]
+# Jito MEV protection (optional)
+enabled = false
+# tip_lamports = 10000
+# block_engine_url = "https://mainnet.block-engine.jito.wtf"
+
+[monitoring]
+# Metrics and observability
+metrics_enabled = true
+metrics_port = 9090
+
+# Health check settings
+health_check_interval_seconds = 30
+
+# Logging
+log_level = "info"
+log_format = "json"  # Options: "json", "pretty"

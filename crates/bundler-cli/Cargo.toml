@@ -1,0 +1,27 @@
+[package]
+name = "bundler-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "CLI interface for the Solana transaction bundler"
+
+[[bin]]
+name = "bundler"
+path = "src/main.rs"
+
+[dependencies]
+bundler-types = { path = "../bundler-types" }
+bundler-config = { path = "../bundler-config" }
+bundler-core = { path = "../bundler-core" }
+
+clap.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+toml.workspace = true
+solana-sdk.workspace = true

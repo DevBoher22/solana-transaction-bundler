@@ -1,0 +1,33 @@
+{
+  "request_id": "550e8400-e29b-41d4-a716-446655440000",
+  "atomic": true,
+  "compute": {
+    "limit": "auto",
+    "price": "auto",
+    "max_price_lamports": 10000
+  },
+  "alt_tables": [],
+  "instructions": [
+    {
+      "program_id": "11111111111111111111111111111112",
+      "keys": [
+        {
+          "pubkey": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+          "is_signer": true,
+          "is_writable": true
+        },
+        {
+          "pubkey": "2nr1bHFT86W9tGnyvmYW4vcHKsQB3sVQfnddasz4kExM",
+          "is_signer": false,
+          "is_writable": true
+        }
+      ],
+      "data_b64": "AgAAAOgDAAAAAAAA"
+    }
+  ],
+  "signers": [],
+  "metadata": {
+    "description": "Simple SOL transfer example",
+    "priority": "normal"
+  }
+}

@@ -1,0 +1,62 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+dist/
+build/
+
+# Coverage reports
+coverage/
+*.profraw
+
+# Benchmark results
+criterion/
+
+# Local configuration
+local.config.toml
+dev-keypair.json
+*.key
+*.keypair
+
+# Docker
+.dockerignore
+
+# Backup files
+*.bak
+*.backup
+
+# Test artifacts
+test-results/
+test-output/
