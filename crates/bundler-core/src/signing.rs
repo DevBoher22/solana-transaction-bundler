@@ -5,9 +5,7 @@ use solana_sdk::{
     transaction::Transaction,
     pubkey::Pubkey,
 };
-use std::{collections::HashMap, sync::Arc};
-use tokio::time::{timeout, Duration};
-use tracing::{debug, error, info, warn};
+use std::collections::HashMap;
 use bs58;
 
 /// Enum for different key provider types
@@ -198,9 +196,20 @@ impl SigningManager {
         let fee_payer = Self::create_key_provider(&config.fee_payer).await?;
         
         let mut additional_signers = HashMap::new();
-        for (alias, signer_config) in &config.additional_signers {
+        for signer_config in &config.additional_signers {
+            let alias = signer_config.alias.clone().ok_or_else(|| {
+                BundlerError::Signing("Additional signer configuration missing alias".to_string())
+            })?;
+
+            if additional_signers.contains_key(&alias) {
+                return Err(BundlerError::Signing(format!(
+                    "Duplicate additional signer alias '{}'",
+                    alias
+                )));
+            }
+
             let provider = Self::create_key_provider(signer_config).await?;
-            additional_signers.insert(alias.clone(), provider);
+            additional_signers.insert(alias, provider);
         }
         
         Ok(Self {
@@ -226,6 +235,9 @@ impl SigningManager {
                 let provider = KmsKeyProvider::new(key_id.clone(), region_str);
                 Ok(KeyProvider::Kms(provider))
             }
+            SignerType::Hardware { .. } => Err(BundlerError::Signing(
+                "Hardware signer support is not implemented".to_string(),
+            )),
         }
     }
     
