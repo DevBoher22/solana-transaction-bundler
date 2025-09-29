@@ -4,6 +4,7 @@ use bundler_core::BundlerService;
 use bundler_types::{BundleRequest, BundleStatus, TransactionStatus};
 use clap::{Parser, Subcommand};
 use serde_json;
+use solana_commitment_config::CommitmentLevel;
 use std::path::PathBuf;
 use tokio;
 use tracing::{error, info, warn};
@@ -12,21 +13,23 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 /// Solana Transaction Bundler CLI
 #[derive(Parser)]
 #[command(name = "bundler")]
-#[command(about = "A production-ready Solana transaction bundler with low latency and high success rate")]
+#[command(
+    about = "A production-ready Solana transaction bundler with low latency and high success rate"
+)]
 #[command(version = "0.1.0")]
 pub struct Cli {
     /// Configuration file path
     #[arg(short, long, default_value = "bundler.config.toml")]
     pub config: PathBuf,
-    
+
     /// Log level (trace, debug, info, warn, error)
     #[arg(short, long, default_value = "info")]
     pub log_level: String,
-    
+
     /// Log format (json, pretty)
     #[arg(long, default_value = "pretty")]
     pub log_format: String,
-    
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -38,63 +41,63 @@ pub enum Commands {
         /// Path to JSON file containing bundle request
         #[arg(value_name = "FILE")]
         file: PathBuf,
-        
+
         /// Show detailed logs
         #[arg(short, long)]
         verbose: bool,
     },
-    
+
     /// Submit a bundle of transactions
     Submit {
         /// Path to JSON file containing bundle request
         #[arg(value_name = "FILE")]
         file: PathBuf,
-        
+
         /// Force atomic execution (all transactions must succeed)
         #[arg(short, long)]
         atomic: bool,
-        
+
         /// Override compute unit limit
         #[arg(long)]
         cu_limit: Option<u32>,
-        
+
         /// Override compute unit price strategy (auto or specific lamports)
         #[arg(long)]
         cu_price: Option<String>,
-        
+
         /// Wait for finalization before returning
         #[arg(short, long)]
         wait: bool,
-        
+
         /// Timeout in seconds for waiting
         #[arg(long, default_value = "60")]
         timeout: u64,
     },
-    
+
     /// Check the status of a transaction or bundle
     Status {
         /// Transaction signature or request ID
         #[arg(value_name = "ID")]
         id: String,
-        
+
         /// Show detailed information
         #[arg(short, long)]
         verbose: bool,
     },
-    
+
     /// Show health status of the bundler service
     Health {
         /// Show detailed component status
         #[arg(short, long)]
         verbose: bool,
     },
-    
+
     /// Show configuration and validate settings
     Config {
         /// Show the current configuration
         #[arg(short, long)]
         show: bool,
-        
+
         /// Validate configuration without starting service
         #[arg(short, long)]
         validate: bool,
@@ -110,73 +113,67 @@ impl CliRunner {
     /// Create a new CLI runner
     pub async fn new(config_path: &PathBuf) -> Result<Self> {
         let config = if config_path.exists() {
-            BundlerConfig::load_from_path(config_path)
-                .context("Failed to load configuration")?
+            BundlerConfig::load_from_path(config_path).context("Failed to load configuration")?
         } else {
             warn!("Configuration file not found, using defaults");
             BundlerConfig::default()
         };
-        
-        let service = BundlerService::new(config.clone()).await
+
+        let service = BundlerService::new(config.clone())
+            .await
             .context("Failed to initialize bundler service")?;
-        
+
         Ok(Self { config, service })
     }
-    
+
     /// Run the CLI command
     pub async fn run(&self, command: Commands) -> Result<()> {
         match command {
-            Commands::Simulate { file, verbose } => {
-                self.simulate_command(file, verbose).await
-            }
-            Commands::Submit { 
-                file, 
-                atomic, 
-                cu_limit, 
-                cu_price, 
-                wait, 
-                timeout 
+            Commands::Simulate { file, verbose } => self.simulate_command(file, verbose).await,
+            Commands::Submit {
+                file,
+                atomic,
+                cu_limit,
+                cu_price,
+                wait,
+                timeout,
             } => {
-                self.submit_command(file, atomic, cu_limit, cu_price, wait, timeout).await
+                self.submit_command(file, atomic, cu_limit, cu_price, wait, timeout)
+                    .await
             }
-            Commands::Status { id, verbose } => {
-                self.status_command(id, verbose).await
-            }
-            Commands::Health { verbose } => {
-                self.health_command(verbose).await
-            }
-            Commands::Config { show, validate } => {
-                self.config_command(show, validate).await
-            }
+            Commands::Status { id, verbose } => self.status_command(id, verbose).await,
+            Commands::Health { verbose } => self.health_command(verbose).await,
+            Commands::Config { show, validate } => self.config_command(show, validate).await,
         }
     }
-    
+
     /// Handle simulate command
     async fn simulate_command(&self, file: PathBuf, verbose: bool) -> Result<()> {
         info!("Simulating bundle from file: {}", file.display());
-        
+
         let bundle_request = self.load_bundle_request(&file)?;
-        
+
         // Create transactions from the request
-        let instructions: Vec<_> = bundle_request.instructions
+        let instructions: Vec<solana_sdk::instruction::Instruction> = bundle_request
+            .instructions
             .iter()
             .map(|ix| ix.clone().into())
             .collect();
-        
+
         // Simulate each instruction
         for (i, instruction) in instructions.iter().enumerate() {
             println!("Simulating instruction {} of {}", i + 1, instructions.len());
-            
+
             // Create a simple transaction for simulation
             let fee_payer = self.service.get_fee_payer_pubkey().await?;
             let mut transaction = solana_sdk::transaction::Transaction::new_with_payer(
                 &[instruction.clone()],
                 Some(&fee_payer),
             );
-            
+
             // Set a dummy blockhash for simulation
             transaction.message.recent_blockhash = solana_sdk::hash::Hash::new_unique();
-            
+
             match self.service.simulate_transaction(&transaction).await {
                 Ok(result) => {
                     println!("✅ Simulation successful");
@@ -186,7 +183,7 @@ impl CliRunner {
                     if let Some(fee) = result.estimated_fee {
                         println!("   Estimated fee: {} lamports", fee);
                     }
-                    
+
                     if verbose && !result.logs.is_empty() {
                         println!("   Logs:");
                         for log in &result.logs {
@@ -202,10 +199,10 @@ impl CliRunner {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Handle submit command
     async fn submit_command(
         &self,
@@ -217,28 +214,27 @@ impl CliRunner {
         timeout: u64,
     ) -> Result<()> {
         info!("Submitting bundle from file: {}", file.display());
-        
+
         let mut bundle_request = self.load_bundle_request(&file)?;
-        
+
         // Override settings from command line
         if atomic {
             bundle_request.atomic = true;
         }
-        
+
         if let Some(limit) = cu_limit {
             bundle_request.compute.limit = bundler_types::ComputeLimit::Fixed(limit);
         }
-        
+
         if let Some(price_str) = cu_price {
             bundle_request.compute.price = if price_str == "auto" {
                 bundler_types::ComputePrice::Auto
             } else {
-                let price: u64 = price_str.parse()
-                    .context("Invalid compute unit price")?;
+                let price: u64 = price_str.parse().context("Invalid compute unit price")?;
                 bundler_types::ComputePrice::Fixed(price)
             };
         }
-        
+
         // Submit the bundle
         match self.service.process_bundle(bundle_request).await {
             Ok(response) => {
@@ -246,35 +242,55 @@ impl CliRunner {
                 println!("Request ID: {}", response.request_id);
                 println!("Status: {:?}", response.status);
                 println!("Transactions: {}", response.transactions.len());
-                
+
                 // Show transaction signatures
                 for (i, tx_result) in response.transactions.iter().enumerate() {
-                    println!("  Transaction {}: {}", i + 1, tx_result.signature);
-                    if let Some(slot) = tx_result.slot {
-                        println!("    Slot: {}", slot);
-                    }
+                    let signature_display = tx_result
+                        .signature
+                        .as_ref()
+                        .map(|sig| sig.to_string())
+                        .unwrap_or_else(|| "pending".to_string());
+                    println!("  Transaction {}: {}", i + 1, signature_display);
                     println!("    Status: {:?}", tx_result.status);
-                    
+
+                    if let Some(cu) = tx_result.compute_units_consumed {
+                        println!("    Compute units: {}", cu);
+                    }
+
+                    if let Some(fee) = tx_result.fee_paid_lamports {
+                        println!("    Fee paid: {} lamports", fee);
+                    }
+
                     if let Some(error) = &tx_result.error {
-                        println!("    Error: {}", error.message);
+                        println!("    Error: {}", error);
                     }
                 }
-                
+
                 // Show metrics
                 println!("\nMetrics:");
                 println!("  Total latency: {}ms", response.metrics.total_latency_ms);
-                println!("  Simulation time: {}ms", response.metrics.simulation_time_ms);
+                println!(
+                    "  Simulation time: {}ms",
+                    response.metrics.simulation_time_ms
+                );
                 println!("  Signing time: {}ms", response.metrics.signing_time_ms);
-                println!("  Submission time: {}ms", response.metrics.submission_time_ms);
-                println!("  Confirmation time: {}ms", response.metrics.confirmation_time_ms);
+                println!(
+                    "  Submission time: {}ms",
+                    response.metrics.submission_time_ms
+                );
+                println!(
+                    "  Confirmation time: {}ms",
+                    response.metrics.confirmation_time_ms
+                );
                 println!("  Retry attempts: {}", response.metrics.retry_attempts);
-                
+
                 // Wait for finalization if requested
                 if wait && response.status != BundleStatus::Failed {
                     println!("\nWaiting for finalization...");
-                    self.wait_for_finalization(&response.transactions, timeout).await?;
+                    self.wait_for_finalization(&response.transactions, timeout)
+                        .await?;
                 }
-                
+
                 // Exit with error code if bundle failed
                 if response.status == BundleStatus::Failed {
                     std::process::exit(1);
@@ -285,41 +301,44 @@ impl CliRunner {
                 std::process::exit(1);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Handle status command
     async fn status_command(&self, id: String, verbose: bool) -> Result<()> {
         info!("Checking status for: {}", id);
-        
+
         // Try to parse as signature first
         if let Ok(signature) = id.parse::<solana_sdk::signature::Signature>() {
             match self.service.get_transaction(&signature).await {
                 Ok(Some(tx)) => {
                     println!("Transaction found: {}", signature);
-                    
+
                     if let Some(meta) = &tx.transaction.meta {
-                        println!("Status: {:?}", if meta.err.is_none() { 
-                            TransactionStatus::Finalized 
-                        } else { 
-                            TransactionStatus::Failed 
-                        });
-                        
+                        println!(
+                            "Status: {:?}",
+                            if meta.err.is_none() {
+                                TransactionStatus::Finalized
+                            } else {
+                                TransactionStatus::Failed
+                            }
+                        );
+
                         println!("Slot: {}", tx.slot);
-                        
+
                         println!("Fee: {} lamports", meta.fee);
-                        
+
                         match meta.compute_units_consumed {
-                            solana_transaction_status_client_types::option_serializer::OptionSerializer::Some(cu) => {
+                            solana_transaction_status::option_serializer::OptionSerializer::Some(cu) => {
                                 println!("Compute units: {}", cu);
                             },
                             _ => {}
                         }
-                        
+
                         if verbose {
                             match &meta.log_messages {
-                                solana_transaction_status_client_types::option_serializer::OptionSerializer::Some(logs) => {
+                                solana_transaction_status::option_serializer::OptionSerializer::Some(logs) => {
                                     println!("\nLogs:");
                                     for log in logs {
                                         println!("  {}", log);
@@ -328,7 +347,7 @@ impl CliRunner {
                                 _ => {}
                             }
                         }
-                        
+
                         if let Some(err) = &meta.err {
                             println!("Error: {:?}", err);
                         }
@@ -347,14 +366,14 @@ impl CliRunner {
             println!("Request ID status checking not implemented yet");
             println!("Use transaction signature instead");
         }
-        
+
         Ok(())
     }
-    
+
     /// Handle health command
     async fn health_command(&self, verbose: bool) -> Result<()> {
         info!("Checking bundler health");
-        
+
         match self.service.health_check().await {
             Ok(health) => {
                 let all_healthy = health.values().all(|status| status == "healthy");
@@ -363,9 +382,9 @@ impl CliRunner {
                 } else {
                     println!("❌ Bundler is unhealthy");
                 }
-                
+
                 println!("Last check: {}", chrono::Utc::now().to_rfc3339());
-                
+
                 if verbose {
                     println!("\nComponent status:");
                     for (name, status) in &health {
@@ -373,7 +392,7 @@ impl CliRunner {
                         println!("  {} {} ({})", status_icon, name, status);
                     }
                 }
-                
+
                 if !all_healthy {
                     std::process::exit(1);
                 }
@@ -383,17 +402,17 @@ impl CliRunner {
                 std::process::exit(1);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Handle config command
     async fn config_command(&self, show: bool, validate: bool) -> Result<()> {
         if show {
             println!("Current configuration:");
             println!("{}", toml::to_string_pretty(&self.config)?);
         }
-        
+
         if validate {
             match self.config.validate() {
                 Ok(_) => println!("✅ Configuration is valid"),
@@ -403,58 +422,67 @@ impl CliRunner {
                 }
             }
         }
-        
+
         if !show && !validate {
             println!("Use --show to display configuration or --validate to check it");
         }
-        
+
         Ok(())
     }
-    
+
     /// Load bundle request from JSON file
     fn load_bundle_request(&self, file: &PathBuf) -> Result<BundleRequest> {
         let content = std::fs::read_to_string(file)
             .with_context(|| format!("Failed to read file: {}", file.display()))?;
-        
+
         let request: BundleRequest = serde_json::from_str(&content)
             .with_context(|| format!("Failed to parse JSON from: {}", file.display()))?;
-        
+
         Ok(request)
     }
-    
+
     /// Wait for transactions to be finalized
     async fn wait_for_finalization(
         &self,
         transactions: &[bundler_types::TransactionResult],
         timeout_seconds: u64,
     ) -> Result<()> {
-        use tokio::time::{timeout, Duration, sleep};
-        
+        use tokio::time::{sleep, timeout, Duration};
+
         let timeout_duration = Duration::from_secs(timeout_seconds);
         let start_time = std::time::Instant::now();
-        
+
         for tx_result in transactions {
             if tx_result.status == TransactionStatus::Failed {
                 continue; // Skip failed transactions
             }
-            
+
+            let Some(signature) = tx_result.signature.as_ref() else {
+                continue;
+            };
+            let signature = signature.clone();
+            let signature_str = signature.to_string();
+
             let remaining_time = timeout_duration.saturating_sub(start_time.elapsed());
             if remaining_time.is_zero() {
                 warn!("Timeout waiting for finalization");
                 break;
             }
-            
-            println!("Waiting for transaction {} to finalize...", tx_result.signature);
-            
-            let result = timeout(remaining_time, async {
+
+            println!("Waiting for transaction {} to finalize...", signature_str);
+
+            let service = &self.service;
+            let signature_for_check = signature.clone();
+            let display_signature = signature_str.clone();
+            let result = timeout(remaining_time, async move {
                 loop {
-                    match self.service.confirm_transaction(
-                        &tx_result.signature,
-                        solana_sdk::commitment_config::CommitmentLevel::Finalized,
-                    ).await {
+                    match service
+                        .confirm_transaction(&signature_for_check, CommitmentLevel::Finalized)
+                        .await
+                    {
                         Ok(true) => {
-                            println!("✅ Transaction {} finalized", tx_result.signature);
-                            return Ok(());
+                            println!("✅ Transaction {} finalized", display_signature);
+                            break;
                         }
                         Ok(false) => {
                             sleep(Duration::from_millis(500)).await;
@@ -465,16 +493,20 @@ impl CliRunner {
                         }
                     }
                 }
-            }).await;
-            
+            })
+            .await;
+
             match result {
                 Ok(_) => {} // Transaction finalized
                 Err(_) => {
-                    warn!("Timeout waiting for transaction {} to finalize", tx_result.signature);
+                    warn!(
+                        "Timeout waiting for transaction {} to finalize",
+                        signature_str
+                    );
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -489,10 +521,11 @@ pub fn init_logging(level: &str, format: &str) -> Result<()> {
         "error" => tracing::Level::ERROR,
         _ => return Err(anyhow::anyhow!("Invalid log level: {}", level)),
     };
-    
-    let subscriber = tracing_subscriber::registry()
-        .with(tracing_subscriber::filter::LevelFilter::from_level(level_filter));
-    
+
+    let subscriber = tracing_subscriber::registry().with(
+        tracing_subscriber::filter::LevelFilter::from_level(level_filter),
+    );
+
     match format.to_lowercase().as_str() {
         "json" => {
             subscriber
@@ -506,31 +539,31 @@ pub fn init_logging(level: &str, format: &str) -> Result<()> {
         }
         _ => return Err(anyhow::anyhow!("Invalid log format: {}", format)),
     }
-    
+
     Ok(())
 }
 
 /// Main CLI entry point
 pub async fn run_cli() -> Result<()> {
     let cli = Cli::parse();
-    
+
     // Initialize logging
     init_logging(&cli.log_level, &cli.log_format)?;
-    
+
     // Create and run CLI
     let runner = CliRunner::new(&cli.config).await?;
     runner.run(cli.command).await?;
-    
+
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
-    use std::io::Write;
     use bundler_types::{ComputeConfig, ComputeLimit, ComputePrice, InstructionData};
-    use solana_sdk::{pubkey::Pubkey, instruction::AccountMeta};
+    use solana_sdk::{instruction::AccountMeta, pubkey::Pubkey};
+    use std::io::Write;
+    use tempfile::NamedTempFile;
     use uuid::Uuid;
 
     #[test]
@@ -538,7 +571,7 @@ mod tests {
         // Test basic CLI parsing
         let args = vec!["bundler", "submit", "--config", "test.toml", "bundle.json"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.config, "test.toml");
         match cli.command {
             Commands::Submit { bundle_file } => {
@@ -552,10 +585,10 @@ mod tests {
     fn test_cli_with_verbose_flag() {
         let args = vec!["bundler", "--verbose", "status"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.log_level, "debug");
         match cli.command {
-            Commands::Status => {},
+            Commands::Status => {}
             _ => panic!("Expected Status command"),
         }
     }
@@ -564,10 +597,10 @@ mod tests {
     fn test_cli_with_custom_log_format() {
         let args = vec!["bundler", "--log-format", "json", "health"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.log_format, "json");
         match cli.command {
-            Commands::Health => {},
+            Commands::Health => {}
             _ => panic!("Expected Health command"),
         }
     }
@@ -584,19 +617,15 @@ mod tests {
                 max_price_lamports: 50000,
             },
             alt_tables: vec![],
-            instructions: vec![
-                InstructionData {
-                    program_id: Pubkey::new_unique(),
-                    keys: vec![
-                        AccountMeta {
-                            pubkey: Pubkey::new_unique(),
-                            is_signer: true,
-                            is_writable: true,
-                        }
-                    ],
-                    data_b64: base64::engine::general_purpose::STANDARD.encode(&[1, 2, 3, 4]),
-                }
-            ],
+            instructions: vec![InstructionData {
+                program_id: Pubkey::new_unique(),
+                keys: vec![AccountMeta {
+                    pubkey: Pubkey::new_unique(),
+                    is_signer: true,
+                    is_writable: true,
+                }],
+                data_b64: base64::engine::general_purpose::STANDARD.encode(&[1, 2, 3, 4]),
+            }],
             signers: vec![],
             metadata: std::collections::HashMap::new(),
         };
@@ -609,7 +638,10 @@ mod tests {
         let loaded_request = load_bundle_request(temp_file.path()).unwrap();
         assert_eq!(bundle_request.request_id, loaded_request.request_id);
         assert_eq!(bundle_request.atomic, loaded_request.atomic);
-        assert_eq!(bundle_request.instructions.len(), loaded_request.instructions.len());
+        assert_eq!(
+            bundle_request.instructions.len(),
+            loaded_request.instructions.len()
+        );
     }
 
     #[test]
@@ -798,13 +830,11 @@ worker_threads = 4
                 max_price_lamports: 50000,
             },
             alt_tables: vec![],
-            instructions: vec![
-                InstructionData {
-                    program_id: Pubkey::new_unique(),
-                    keys: vec![],
-                    data_b64: base64::engine::general_purpose::STANDARD.encode(&[]),
-                }
-            ],
+            instructions: vec![InstructionData {
+                program_id: Pubkey::new_unique(),
+                keys: vec![],
+                data_b64: base64::engine::general_purpose::STANDARD.encode(&[]),
+            }],
             signers: vec![],
             metadata: std::collections::HashMap::new(),
         };
@@ -832,7 +862,7 @@ worker_threads = 4
     fn test_default_values() {
         let args = vec!["bundler", "status"];
         let cli = Cli::try_parse_from(args).unwrap();
-        
+
         assert_eq!(cli.config, "bundler.config.toml");
         assert_eq!(cli.log_level, "info");
         assert_eq!(cli.log_format, "pretty");
