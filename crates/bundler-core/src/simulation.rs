@@ -1,5 +1,6 @@
 use bundler_config::SecurityConfig;
 use bundler_types::{BundlerError, BundlerResult};
+use serde::Serialize;
 use solana_sdk::{pubkey::Pubkey, transaction::Transaction};
 use std::{collections::HashSet, sync::Arc};
 use tracing::{debug, error, info, warn};
@@ -7,7 +8,7 @@ use tracing::{debug, error, info, warn};
 use crate::rpc::SolanaRpcClient;
 
 /// Detailed error information from simulations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SimulationError {
     pub message: String,
     pub retryable: bool,

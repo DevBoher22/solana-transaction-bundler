@@ -6,10 +6,13 @@ use axum::{
     Router,
 };
 use base64::Engine;
+use bundler_config::BundlerConfig;
 use bundler_core::BundlerService;
 use bundler_types::{BundleRequest, BundleResponse, BundlerError, BundlerResult};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
@@ -56,7 +59,7 @@ pub struct TransactionStatusResponse {
 }
 
 /// Response for health check
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct HealthResponse {
     pub healthy: bool,
     pub timestamp: String,
@@ -64,7 +67,7 @@ pub struct HealthResponse {
 }
 
 /// Component health information
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ComponentHealth {
     pub healthy: bool,
     pub message: Option<String>,
@@ -72,7 +75,7 @@ pub struct ComponentHealth {
 }
 
 /// Error response
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,
     pub details: Option<String>,
@@ -220,13 +223,15 @@ async fn simulate_bundle(
         
         match service.simulate_transaction(&transaction).await {
             Ok(result) => {
+                let error_message = result.error.as_ref().map(|err| err.message.clone());
+
                 simulation_results.push(serde_json::json!({
                     "instruction_index": i,
                     "success": result.success,
                     "compute_units_consumed": result.compute_units_consumed,
                     "estimated_fee": result.estimated_fee,
                     "logs": result.logs,
-                    "error": result.error,
+                    "error": error_message,
                 }));
             }
             Err(e) => {
@@ -335,30 +340,32 @@ async fn health_check(
 ) -> Result<Json<HealthResponse>, (StatusCode, Json<ErrorResponse>)> {
     match service.health_check().await {
         Ok(health) => {
+            let timestamp = Utc::now().to_rfc3339();
+
             let components = health
-                .iter()
+                .into_iter()
                 .map(|(name, status)| {
-                    (name.clone(), ComponentHealth {
-                        healthy: status == "healthy",
-                        message: Some(status.clone()),
-                        last_success: Some(Utc::now().to_rfc3339()),
-                    })
+                    let is_healthy = status == "healthy";
+
+                    (
+                        name,
+                        ComponentHealth {
+                            healthy: is_healthy,
+                            message: Some(status),
+                            last_success: Some(timestamp.clone()),
+                        },
+                    )
                 })
-                .collect::<Vec<_>>();
-            
-            let all_healthy = health.values().all(|status| status == "healthy");
-            let status_code = if all_healthy {
-                StatusCode::OK
-            } else {
-                StatusCode::SERVICE_UNAVAILABLE
-            };
-            
+                .collect::<HashMap<_, _>>();
+
+            let all_healthy = components.values().all(|component| component.healthy);
+
             let response = HealthResponse {
                 healthy: all_healthy,
-                timestamp: Utc::now().to_rfc3339(),
+                timestamp,
                 components,
             };
-            
+
             Ok(Json(response))
         }
         Err(e) => {
