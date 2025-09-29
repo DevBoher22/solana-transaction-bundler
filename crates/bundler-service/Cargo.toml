@@ -29,6 +29,8 @@ solana-sdk.workspace = true
 chrono.workspace = true
 tower.workspace = true
 tower-http.workspace = true
+solana-transaction-status.workspace = true
+solana-commitment-config.workspace = true
 
 [dev-dependencies]
 axum-test = "15.0"
