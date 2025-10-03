@@ -479,4 +479,50 @@ mod tests {
         assert_eq!(FeePriority::High.multiplier(), 1.5);
         assert_eq!(FeePriority::Urgent.multiplier(), 2.0);
     }
+    #[test]
+    fn test_new() {
+        // TODO: Implement test for new
+        // Function signature: new(rpc_client: Arc<SolanaRpcClient>, strategy: FeeStrategy) -> Self
+        let result = new(Default::default(), Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_new_edge_cases() {
+        // TODO: Test edge cases for new
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_create_compute_budget_instructions() {
+        // TODO: Implement test for create_compute_budget_instructions
+        // Function signature: create_compute_budget_instructions(compute_units: u32, fee_lamports: Lamports) -> Vec<Instruction>
+        let result = create_compute_budget_instructions(42, Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_create_compute_budget_instructions_edge_cases() {
+        // TODO: Test edge cases for create_compute_budget_instructions
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_get_fee_statistics() {
+        // TODO: Implement test for get_fee_statistics
+        // Function signature: get_fee_statistics() -> FeeStatistics
+        let result = get_fee_statistics();
+        // Add assertions here
+    }
+    #[test]
+    fn test_clear_history() {
+        // TODO: Implement test for clear_history
+        // Function signature: clear_history() -> ()
+        clear_history();
+    }
+    #[test]
+    fn test_multiplier() {
+        // TODO: Implement test for multiplier
+        // Function signature: multiplier() -> f64
+        let result = multiplier();
+        // Add assertions here
+    }
 }

@@ -379,4 +379,17 @@ mod tests {
         assert!(probability >= 0.0);
         assert!(probability <= 1.0);
     }
+    #[test]
+    fn test_new() {
+        // TODO: Implement test for new
+        // Function signature: new(rpc_client: Arc<SolanaRpcClient>, security_config: &SecurityConfig) -> Self
+        let result = new(Default::default(), Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_new_edge_cases() {
+        // TODO: Test edge cases for new
+        // Consider: empty inputs, boundary values, error conditions
+    }
 }

@@ -422,4 +422,30 @@ mod tests {
         assert!(provider.sign(b"test").await.is_err());
         assert!(provider.health_check().await.is_err());
     }
+    #[test]
+    fn test_new() {
+        // TODO: Implement test for new
+        // Function signature: new(path: &str) -> BundlerResult<Self>
+        let result = new("test");
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_new_edge_cases() {
+        // TODO: Test edge cases for new
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_get_signer() {
+        // TODO: Implement test for get_signer
+        // Function signature: get_signer(alias: &str) -> Option<&KeyProvider>
+        let result = get_signer("test");
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_get_signer_edge_cases() {
+        // TODO: Test edge cases for get_signer
+        // Consider: empty inputs, boundary values, error conditions
+    }
 }

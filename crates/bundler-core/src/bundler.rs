@@ -802,4 +802,17 @@ mod tests {
             ComputePrice::Fixed(_) => assert!(true),
         }
     }
+    #[test]
+    fn test_new() {
+        // TODO: Implement test for new
+        // Function signature: new(rpc_client: Arc<SolanaRpcClient>, fee_manager: Arc<FeeManager>, signing_manager: Arc<SigningManager>, simulator: Arc<TransactionSimulator>, config: &BundlerConfig) -> Self
+        let result = new(Default::default(), Default::default(), Default::default(), Default::default(), Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_new_edge_cases() {
+        // TODO: Test edge cases for new
+        // Consider: empty inputs, boundary values, error conditions
+    }
 }

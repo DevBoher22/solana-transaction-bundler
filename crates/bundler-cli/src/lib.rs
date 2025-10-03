@@ -875,4 +875,17 @@ worker_threads = 4
         assert_eq!(cli.log_format, "pretty");
         assert!(!cli.verbose);
     }
+    #[test]
+    fn test_init_logging() {
+        // TODO: Implement test for init_logging
+        // Function signature: init_logging(level: &str, format: &str) -> Result<()>
+        let result = init_logging("test", "test");
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_init_logging_edge_cases() {
+        // TODO: Test edge cases for init_logging
+        // Consider: empty inputs, boundary values, error conditions
+    }
 }

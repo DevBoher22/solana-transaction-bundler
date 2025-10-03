@@ -899,4 +899,156 @@ mod tests {
         config.performance.keep_alive_timeout_seconds = 0;
         assert!(config.validate().is_err());
     }
+    #[test]
+    fn test_load_from_path<P: AsRef<Path>>() {
+        // TODO: Implement test for load_from_path<P: AsRef<Path>>
+        // Function signature: load_from_path<P: AsRef<Path>>(path: P) -> Result<Self>
+        let result = load_from_path<P: AsRef<Path>>(Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_load_from_path<P: AsRef<Path>>_edge_cases() {
+        // TODO: Test edge cases for load_from_path<P: AsRef<Path>>
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_save_to_file<P: AsRef<Path>>() {
+        // TODO: Implement test for save_to_file<P: AsRef<Path>>
+        // Function signature: save_to_file<P: AsRef<Path>>(path: P) -> Result<()>
+        let result = save_to_file<P: AsRef<Path>>(Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_save_to_file<P: AsRef<Path>>_edge_cases() {
+        // TODO: Test edge cases for save_to_file<P: AsRef<Path>>
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_validate() {
+        // TODO: Implement test for validate
+        // Function signature: validate() -> BundlerResult<()>
+        let result = validate();
+        // Add assertions here
+    }
+    #[test]
+    fn test_primary_rpc_endpoint() {
+        // TODO: Implement test for primary_rpc_endpoint
+        // Function signature: primary_rpc_endpoint() -> &RpcEndpoint
+        let result = primary_rpc_endpoint();
+        // Add assertions here
+    }
+    #[test]
+    fn test_rpc_endpoints_by_weight() {
+        // TODO: Implement test for rpc_endpoints_by_weight
+        // Function signature: rpc_endpoints_by_weight() -> Vec<&RpcEndpoint>
+        let result = rpc_endpoints_by_weight();
+        // Add assertions here
+    }
+    #[test]
+    fn test_is_program_whitelisted() {
+        // TODO: Implement test for is_program_whitelisted
+        // Function signature: is_program_whitelisted(program_id: &Pubkey) -> bool
+        let result = is_program_whitelisted(Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_is_program_whitelisted_edge_cases() {
+        // TODO: Test edge cases for is_program_whitelisted
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_effective_log_level() {
+        // TODO: Implement test for effective_log_level
+        // Function signature: effective_log_level() -> tracing::Level
+        let result = effective_log_level();
+        // Add assertions here
+    }
+    #[test]
+    fn test_with_rpc_endpoint() {
+        // TODO: Implement test for with_rpc_endpoint
+        // Function signature: with_rpc_endpoint(url: String, weight: u32) -> Self
+        let result = with_rpc_endpoint("test".to_string(), 42);
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_with_rpc_endpoint_edge_cases() {
+        // TODO: Test edge cases for with_rpc_endpoint
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_with_jito_config() {
+        // TODO: Implement test for with_jito_config
+        // Function signature: with_jito_config(jito_config: JitoConfig) -> Self
+        let result = with_jito_config(Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_with_jito_config_edge_cases() {
+        // TODO: Test edge cases for with_jito_config
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_with_program_whitelist() {
+        // TODO: Implement test for with_program_whitelist
+        // Function signature: with_program_whitelist(programs: Vec<Pubkey>) -> Self
+        let result = with_program_whitelist(vec![]);
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_with_program_whitelist_edge_cases() {
+        // TODO: Test edge cases for with_program_whitelist
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_with_log_level() {
+        // TODO: Implement test for with_log_level
+        // Function signature: with_log_level(level: String) -> Self
+        let result = with_log_level("test".to_string());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_with_log_level_edge_cases() {
+        // TODO: Test edge cases for with_log_level
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_with_port() {
+        // TODO: Implement test for with_port
+        // Function signature: with_port(port: u16) -> Self
+        let result = with_port(Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_with_port_edge_cases() {
+        // TODO: Test edge cases for with_port
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_with_worker_threads() {
+        // TODO: Implement test for with_worker_threads
+        // Function signature: with_worker_threads(threads: u32) -> Self
+        let result = with_worker_threads(42);
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_with_worker_threads_edge_cases() {
+        // TODO: Test edge cases for with_worker_threads
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_system_program() {
+        // TODO: Implement test for system_program
+        // Function signature: system_program() -> Pubkey
+        let result = system_program();
+        // Add assertions here
+    }
 }

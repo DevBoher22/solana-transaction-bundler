@@ -766,4 +766,11 @@ mod tests {
         assert!(!body.error.is_empty());
         assert!(body.timestamp.is_some());
     }
+    #[test]
+    fn test_create_router() {
+        // TODO: Implement test for create_router
+        // Function signature: create_router() -> Router
+        let result = create_router();
+        // Add assertions here
+    }
 }

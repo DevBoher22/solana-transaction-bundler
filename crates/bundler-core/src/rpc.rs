@@ -455,4 +455,31 @@ mod tests {
         let health = client.get_health_status();
         assert!(!health.get(endpoint_url).unwrap().healthy);
     }
+    #[test]
+    fn test_new() {
+        // TODO: Implement test for new
+        // Function signature: new(config: &BundlerConfig) -> BundlerResult<Self>
+        let result = new(Default::default());
+        // Add assertions here
+    }
+
+    #[test]
+    fn test_new_edge_cases() {
+        // TODO: Test edge cases for new
+        // Consider: empty inputs, boundary values, error conditions
+    }
+    #[test]
+    fn test_get_best_endpoint() {
+        // TODO: Implement test for get_best_endpoint
+        // Function signature: get_best_endpoint() -> BundlerResult<&RpcEndpoint>
+        let result = get_best_endpoint();
+        // Add assertions here
+    }
+    #[test]
+    fn test_get_health_status() {
+        // TODO: Implement test for get_health_status
+        // Function signature: get_health_status() -> HashMap<String, EndpointHealth>
+        let result = get_health_status();
+        // Add assertions here
+    }
 }

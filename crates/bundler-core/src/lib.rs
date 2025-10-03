@@ -224,4 +224,39 @@ mod tests {
         // but the code should compile
         println!("Service creation result: {:?}", result.is_ok());
     }
+    #[test]
+    fn test_rpc_client() {
+        // TODO: Implement test for rpc_client
+        // Function signature: rpc_client() -> Arc<SolanaRpcClient>
+        let result = rpc_client();
+        // Add assertions here
+    }
+    #[test]
+    fn test_fee_manager() {
+        // TODO: Implement test for fee_manager
+        // Function signature: fee_manager() -> Arc<FeeManager>
+        let result = fee_manager();
+        // Add assertions here
+    }
+    #[test]
+    fn test_signing_manager() {
+        // TODO: Implement test for signing_manager
+        // Function signature: signing_manager() -> Arc<SigningManager>
+        let result = signing_manager();
+        // Add assertions here
+    }
+    #[test]
+    fn test_simulator() {
+        // TODO: Implement test for simulator
+        // Function signature: simulator() -> Arc<TransactionSimulator>
+        let result = simulator();
+        // Add assertions here
+    }
+    #[test]
+    fn test_get_config_summary() {
+        // TODO: Implement test for get_config_summary
+        // Function signature: get_config_summary() -> HashMap<String, serde_json::Value>
+        let result = get_config_summary();
+        // Add assertions here
+    }
 }
